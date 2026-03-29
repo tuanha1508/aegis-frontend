@@ -354,11 +354,11 @@ export default function DashboardPage() {
             <span className="text-[8px] uppercase tracking-[0.2em] font-mono font-bold text-foreground-muted">Conditions</span>
           </div>
           {[
-            { label: "TEMP", value: weather ? `${Math.round(weather.temperature_f)}°F` : "—", sub: weather?.conditions },
-            { label: "WIND", value: weather ? `${Math.round(weather.wind_speed_mph)} mph` : "—", sub: weather?.wind_direction, warn: highWind },
+            { label: "TEMP", value: weather?.temperature_f != null ? `${Math.round(weather.temperature_f)}°F` : "—", sub: weather?.conditions },
+            { label: "WIND", value: weather?.wind_speed_mph != null ? `${Math.round(weather.wind_speed_mph)} mph` : "—", sub: weather?.wind_direction, warn: highWind },
             { label: "TIDE", value: tides?.current_level_ft != null ? `${tides.current_level_ft.toFixed(1)} ft` : "—" },
-            { label: "HUMID", value: weather ? `${weather.humidity_percent}%` : "—" },
-            { label: "BARO", value: weather ? `${weather.barometric_pressure_inhg.toFixed(2)}"` : "—", warn: weather && weather.barometric_pressure_inhg < 29.5 },
+            { label: "HUMID", value: weather?.humidity_percent != null ? `${weather.humidity_percent}%` : "—" },
+            { label: "BARO", value: weather?.barometric_pressure_inhg != null ? `${weather.barometric_pressure_inhg.toFixed(2)}"` : "—", warn: weather?.barometric_pressure_inhg != null && weather.barometric_pressure_inhg < 29.5 },
           ].map((row) => (
             <div key={row.label} className="px-3 py-1.5 flex items-center justify-between border-b border-border last:border-0">
               <span className="text-[9px] font-mono text-foreground-muted">{row.label}</span>
