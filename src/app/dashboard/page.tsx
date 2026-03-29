@@ -56,13 +56,18 @@ export default function DashboardPage() {
 
   const currentPhase = phase?.current_phase ?? "pre_storm";
   const config = phaseConfig[currentPhase];
+  const stormActive = currentPhase === "active_storm";
+
   const shelters = resources?.filter((r) => r.type === "shelter" && r.status === "open") ?? [];
-  const criticalAlerts = alerts?.filter((a) => a.priority === "critical" || a.priority === "emergency") ?? [];
+  // Only show storm data (alerts, incidents, reports) during active_storm
+  const stormAlerts = stormActive ? (alerts ?? []) : [];
+  const criticalAlerts = stormAlerts.filter((a) => a.priority === "critical" || a.priority === "emergency");
   const severeNWS = nwsAlerts?.alerts.filter((a) => a.severity === "Extreme" || a.severity === "Severe") ?? [];
   const stations = waterLevels?.stations ?? [];
   const hasFloodWarning = stations.some((s) => s.percent_of_flood > 80);
   const highWind = weather && weather.wind_speed_mph > 40;
-  const activeIncidents = incidents?.filter((i) => !i.resolved) ?? [];
+  const activeIncidents = stormActive ? (incidents?.filter((i) => !i.resolved) ?? []) : [];
+  const stormReports = stormActive ? (reports ?? []) : [];
 
   const [opsStatus, setOpsStatus] = useState<{ type: "success" | "error"; message: string } | null>(null);
 
@@ -284,12 +289,14 @@ export default function DashboardPage() {
             <span className="text-[8px] uppercase tracking-[0.2em] font-mono font-bold text-foreground-muted">Overview</span>
           </div>
           {[
-            { label: "ALERTS", value: `${alerts?.length ?? 0}`, warn: criticalAlerts.length > 0 },
-            { label: "CRITICAL", value: `${criticalAlerts.length}`, warn: criticalAlerts.length > 0 },
-            { label: "INCIDENTS", value: `${activeIncidents.length}`, warn: activeIncidents.some((i) => i.severity_label === "critical") },
             { label: "SHELTERS", value: `${shelters.length}` },
-            { label: "REPORTS", value: `${reports?.length ?? 0}` },
             { label: "NWS", value: `${nwsAlerts?.active_count ?? 0}`, warn: (nwsAlerts?.active_count ?? 0) > 0 },
+            ...(stormActive ? [
+              { label: "ALERTS", value: `${stormAlerts.length}`, warn: criticalAlerts.length > 0 },
+              { label: "CRITICAL", value: `${criticalAlerts.length}`, warn: criticalAlerts.length > 0 },
+              { label: "INCIDENTS", value: `${activeIncidents.length}`, warn: activeIncidents.some((i: { severity_label?: string | null }) => i.severity_label === "critical") },
+              { label: "REPORTS", value: `${stormReports.length}` },
+            ] : []),
           ].map((row) => (
             <div key={row.label} className="px-3 py-1.5 flex items-center justify-between border-b border-border last:border-0">
               <span className="text-[9px] font-mono text-foreground-muted">{row.label}</span>
@@ -369,78 +376,69 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* Bottom: Incidents + Reports + Alerts + News */}
-      <div className="grid lg:grid-cols-4 gap-1.5">
-        {/* Incidents */}
-        <div className="bg-surface rounded-lg border border-border overflow-hidden">
-          <div className="px-3 py-1.5 border-b border-border">
-            <span className="text-[8px] uppercase tracking-[0.2em] font-mono font-bold text-foreground-muted">Incidents</span>
-          </div>
-          {activeIncidents.length > 0 ? activeIncidents.slice(0, 6).map((incident) => {
-            const isCritical = incident.severity_label === "critical" || incident.severity_label === "high";
-            return (
-              <div key={incident.id} className={`px-3 py-1.5 border-b border-border last:border-0 ${isCritical ? "border-l-2 border-l-destructive" : "border-l-2 border-l-transparent"}`}>
-                <div className="flex items-center justify-between gap-2">
-                  <p className={`text-[10px] font-mono line-clamp-1 ${isCritical ? "text-destructive" : "text-foreground"}`}>{incident.incident_type}</p>
-                  {incident.severity_score != null && (
-                    <span className={`text-[9px] font-mono font-bold ${isCritical ? "text-destructive" : "text-foreground-muted"}`}>{incident.severity_score}</span>
-                  )}
-                </div>
-                <p className="text-[9px] font-mono text-foreground-muted line-clamp-1 mt-0.5">{incident.location_text}</p>
-                {incident.recommended_action && (
-                  <p className="text-[8px] font-mono text-accent mt-0.5 line-clamp-1">{incident.recommended_action}</p>
-                )}
-              </div>
-            );
-          }) : (
-            <div className="py-3 text-center"><p className="text-[9px] font-mono text-foreground-muted">NO INCIDENTS</p></div>
-          )}
-        </div>
-
-        {/* Reports */}
-        <div className="bg-surface rounded-lg border border-border overflow-hidden">
-          <div className="px-3 py-1.5 border-b border-border">
-            <span className="text-[8px] uppercase tracking-[0.2em] font-mono font-bold text-foreground-muted">Reports</span>
-          </div>
-          {reports && reports.filter((r) => r.incident_type && r.incident_type !== "other").length > 0 ? reports.filter((r) => r.incident_type && r.incident_type !== "other").slice(0, 6).map((report) => (
-            <div key={report.id} className={`px-3 py-1.5 border-b border-border last:border-0 ${report.has_children ? "border-l-2 border-l-destructive" : "border-l-2 border-l-transparent"}`}>
-              <p className="text-[10px] font-mono text-foreground line-clamp-1">{report.raw_text}</p>
-              <div className="flex items-center gap-2 mt-0.5">
-                <span className="text-[8px] font-mono text-foreground-muted">{report.source}</span>
-                {report.incident_type && (
-                  <span className="text-[8px] font-mono text-warning">{report.incident_type}</span>
-                )}
-                {report.location_text && (
-                  <span className="text-[8px] font-mono text-foreground-muted">{report.location_text}</span>
-                )}
-                <span className={`text-[8px] font-mono ${report.processed ? "text-success" : "text-foreground-muted"}`}>
-                  {report.processed ? "✓" : "pending"}
-                </span>
-              </div>
+      {/* Storm panels — only during active storm */}
+      {stormActive && (
+        <div className="grid lg:grid-cols-3 gap-1.5 mb-1.5">
+          <div className="bg-surface rounded-lg border border-border overflow-hidden">
+            <div className="px-3 py-1.5 border-b border-border">
+              <span className="text-[8px] uppercase tracking-[0.2em] font-mono font-bold text-foreground-muted">Incidents</span>
             </div>
-          )) : (
-            <div className="py-3 text-center"><p className="text-[9px] font-mono text-foreground-muted">NO REPORTS</p></div>
-          )}
-        </div>
-
-        {/* Alerts */}
-        <div className="bg-surface rounded-lg border border-border overflow-hidden">
-          <div className="px-3 py-1.5 border-b border-border">
-            <span className="text-[8px] uppercase tracking-[0.2em] font-mono font-bold text-foreground-muted">Alerts</span>
+            {activeIncidents.length > 0 ? activeIncidents.slice(0, 6).map((incident) => {
+              const isCritical = incident.severity_label === "critical" || incident.severity_label === "high";
+              return (
+                <div key={incident.id} className={`px-3 py-1.5 border-b border-border last:border-0 ${isCritical ? "border-l-2 border-l-destructive" : "border-l-2 border-l-transparent"}`}>
+                  <div className="flex items-center justify-between gap-2">
+                    <p className={`text-[10px] font-mono line-clamp-1 ${isCritical ? "text-destructive" : "text-foreground"}`}>{incident.incident_type}</p>
+                    {incident.severity_score != null && (
+                      <span className={`text-[9px] font-mono font-bold ${isCritical ? "text-destructive" : "text-foreground-muted"}`}>{incident.severity_score}</span>
+                    )}
+                  </div>
+                  <p className="text-[9px] font-mono text-foreground-muted line-clamp-1 mt-0.5">{incident.location_text}</p>
+                </div>
+              );
+            }) : (
+              <div className="py-3 text-center"><p className="text-[9px] font-mono text-foreground-muted">NO INCIDENTS</p></div>
+            )}
           </div>
-          {alerts && alerts.length > 0 ? alerts.slice(0, 6).map((alert) => {
-            const isCritical = alert.priority === "critical" || alert.priority === "emergency";
-            return (
-              <div key={alert.id} className={`px-3 py-1.5 border-b border-border last:border-0 ${isCritical ? "border-l-2 border-l-destructive" : "border-l-2 border-l-transparent"}`}>
-                <p className={`text-[10px] font-mono line-clamp-1 ${isCritical ? "text-destructive" : "text-foreground"}`}>{alert.title}</p>
-                <p className="text-[9px] font-mono text-foreground-muted line-clamp-1 mt-0.5">{alert.message}</p>
-              </div>
-            );
-          }) : (
-            <div className="py-3 text-center"><p className="text-[9px] font-mono text-foreground-muted">NO ALERTS</p></div>
-          )}
-        </div>
 
+          <div className="bg-surface rounded-lg border border-border overflow-hidden">
+            <div className="px-3 py-1.5 border-b border-border">
+              <span className="text-[8px] uppercase tracking-[0.2em] font-mono font-bold text-foreground-muted">Reports</span>
+            </div>
+            {stormReports.filter((r) => r.incident_type && r.incident_type !== "other").length > 0 ? stormReports.filter((r) => r.incident_type && r.incident_type !== "other").slice(0, 6).map((report) => (
+              <div key={report.id} className={`px-3 py-1.5 border-b border-border last:border-0 ${report.has_children ? "border-l-2 border-l-destructive" : "border-l-2 border-l-transparent"}`}>
+                <p className="text-[10px] font-mono text-foreground line-clamp-1">{report.raw_text}</p>
+                <div className="flex items-center gap-2 mt-0.5">
+                  <span className="text-[8px] font-mono text-foreground-muted">{report.source}</span>
+                  {report.incident_type && <span className="text-[8px] font-mono text-warning">{report.incident_type}</span>}
+                </div>
+              </div>
+            )) : (
+              <div className="py-3 text-center"><p className="text-[9px] font-mono text-foreground-muted">NO REPORTS</p></div>
+            )}
+          </div>
+
+          <div className="bg-surface rounded-lg border border-border overflow-hidden">
+            <div className="px-3 py-1.5 border-b border-border">
+              <span className="text-[8px] uppercase tracking-[0.2em] font-mono font-bold text-foreground-muted">Alerts</span>
+            </div>
+            {stormAlerts.length > 0 ? stormAlerts.slice(0, 6).map((alert) => {
+              const isCritical = alert.priority === "critical" || alert.priority === "emergency";
+              return (
+                <div key={alert.id} className={`px-3 py-1.5 border-b border-border last:border-0 ${isCritical ? "border-l-2 border-l-destructive" : "border-l-2 border-l-transparent"}`}>
+                  <p className={`text-[10px] font-mono line-clamp-1 ${isCritical ? "text-destructive" : "text-foreground"}`}>{alert.title}</p>
+                  <p className="text-[9px] font-mono text-foreground-muted line-clamp-1 mt-0.5">{alert.message}</p>
+                </div>
+              );
+            }) : (
+              <div className="py-3 text-center"><p className="text-[9px] font-mono text-foreground-muted">NO ALERTS</p></div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* News — always shown (real-time) */}
+      <div className="grid lg:grid-cols-1 gap-1.5">
         {/* News */}
         <div className="bg-surface rounded-lg border border-border overflow-hidden">
           <div className="px-3 py-1.5 border-b border-border">

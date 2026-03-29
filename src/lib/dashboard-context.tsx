@@ -137,7 +137,7 @@ async function getRoute(from: [number, number], to: [number, number]): Promise<[
 // TomTom Traffic Flow API — real-time traffic data with caching
 const TOMTOM_KEY = process.env.NEXT_PUBLIC_TOMTOM_API_KEY ?? "";
 const trafficCache = new Map<string, { level: ShelterRoute["traffic"]; ts: number }>();
-const TRAFFIC_CACHE_TTL = 5 * 60 * 1000; // 5 min cache
+const TRAFFIC_CACHE_TTL = 60 * 1000; // 1 min cache
 
 // Load traffic cache from localStorage
 try {
@@ -200,14 +200,14 @@ function fakeFallbackTraffic(lat: number, lng: number): ShelterRoute["traffic"] 
 const TAMPA_CENTER: [number, number] = [27.9506, -82.4572];
 
 export function DashboardProvider({ children }: { children: ReactNode }) {
-  const { data: phase, refetch: refetchPhase } = useApi(getPhase);
-  const { data: alerts, refetch: refetchAlerts } = useApi(getAlerts);
-  const { data: resources, refetch: refetchResources } = useApi(getResources);
-  const { data: reports, refetch: refetchReports } = useApi(getReports);
-  const { data: incidents, refetch: refetchIncidents } = useApi(getIncidents);
-  const { data: recoveryBriefs } = useApi(getRecoveryBriefs);
-  const { data: assignments } = useApi(getAssignments);
-  const { data: auditLog } = useApi(() => getAuditLog(20));
+  const { data: phase, refetch: refetchPhase } = useApi(getPhase, [], "phase");
+  const { data: alerts, refetch: refetchAlerts } = useApi(getAlerts, [], "alerts");
+  const { data: resources, refetch: refetchResources } = useApi(getResources, [], "resources");
+  const { data: reports, refetch: refetchReports } = useApi(getReports, [], "reports");
+  const { data: incidents, refetch: refetchIncidents } = useApi(getIncidents, [], "incidents");
+  const { data: recoveryBriefs } = useApi(getRecoveryBriefs, [], "recovery");
+  const { data: assignments } = useApi(getAssignments, [], "assignments");
+  const { data: auditLog } = useApi(() => getAuditLog(20), [], "auditlog");
   const {
     weather, waterLevels, tides, alerts: nwsAlerts, news, streams, forecast, lastUpdated,
     refetch: refetchLive,
