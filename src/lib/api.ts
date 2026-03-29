@@ -11,6 +11,13 @@ import type {
   FoundPersonCreate,
   FoundPersonResponse,
   MatchResponse,
+  WaterLevelsResponse,
+  TideData,
+  CurrentWeather,
+  ForecastResponse,
+  WeatherAlertsResponse,
+  NewsFeedResponse,
+  LiveStreamsResponse,
 } from "./types";
 
 const BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
@@ -103,3 +110,28 @@ export const getRecoveryBriefs = () =>
   get<Record<string, unknown>[]>("/recovery/briefs");
 export const getRecoveryBrief = (neighborhood: string) =>
   get<Record<string, unknown>>(`/recovery/briefs/${neighborhood}`);
+
+// Live Data
+export const getLiveWaterLevels = () =>
+  get<WaterLevelsResponse>("/live/water-levels");
+export const getLiveTides = () => get<TideData>("/live/tides");
+export const getLiveWeather = () => get<CurrentWeather>("/live/weather");
+export const getLiveForecast = () => get<ForecastResponse>("/live/forecast");
+export const getLiveAlerts = () =>
+  get<WeatherAlertsResponse>("/live/alerts");
+export const getLiveNews = () => get<NewsFeedResponse>("/live/news");
+export const getLiveStreams = () => get<LiveStreamsResponse>("/live/streams");
+
+// Match review
+async function patch<T>(path: string, body: unknown): Promise<T> {
+  const res = await fetch(`${API}${path}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) throw new Error(`PATCH ${path} failed: ${res.status}`);
+  return res.json();
+}
+
+export const reviewMatch = (id: number, status: "confirmed" | "rejected") =>
+  patch<MatchResponse>(`/reunification/matches/${id}`, { status });

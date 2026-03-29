@@ -20,8 +20,21 @@ const instrumentSerif = Instrument_Serif({
 });
 
 export const metadata: Metadata = {
-  title: "Aegis - Storm Intelligence Dashboard",
-  description: "Storm intelligence dashboard for Tampa Bay",
+  title: "Aegis — Storm Intelligence for Tampa Bay",
+  description:
+    "Real-time monitoring, alerts, and community coordination — protecting lives before, during, and after severe weather. Built for HackUSF 2026.",
+  openGraph: {
+    title: "Aegis — Storm Intelligence for Tampa Bay",
+    description:
+      "Real-time storm monitoring, alerts, and community coordination for Tampa Bay.",
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Aegis — Storm Intelligence for Tampa Bay",
+    description:
+      "Real-time storm monitoring, alerts, and community coordination for Tampa Bay.",
+  },
 };
 
 export default function RootLayout({

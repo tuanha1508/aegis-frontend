@@ -14,11 +14,11 @@ export function Navbar() {
   const [mobileOpen, setMobileOpen] = useState(false);
 
   return (
-    <nav className="fixed top-0 left-0 right-0 z-50 bg-[#F8F8F6]/80 backdrop-blur-md border-b border-[#ECECEA]/60">
+    <nav className="fixed top-0 left-0 right-0 z-50 bg-background/80 backdrop-blur-md border-b border-border/60">
       <div className="mx-auto max-w-6xl px-6 flex items-center justify-between h-14">
         <a href="#" className="flex items-center gap-2">
-          <Shield className="h-[18px] w-[18px] text-[#1A1A1A]" strokeWidth={1.8} />
-          <span className="text-[15px] font-semibold tracking-tight text-[#1A1A1A]">
+          <Shield className="h-[18px] w-[18px] text-foreground" strokeWidth={1.8} />
+          <span className="text-[15px] font-semibold tracking-tight text-foreground">
             Aegis
           </span>
         </a>
@@ -28,7 +28,7 @@ export function Navbar() {
             <a
               key={link.label}
               href={link.href}
-              className="text-[13px] text-[#6B6B6B] hover:text-[#1A1A1A] transition-colors"
+              className="text-[13px] text-foreground-secondary hover:text-foreground transition-colors"
             >
               {link.label}
             </a>
@@ -38,7 +38,7 @@ export function Navbar() {
         <div className="hidden md:flex items-center">
           <Link
             href="/dashboard"
-            className="inline-flex items-center justify-center rounded-full px-5 h-8 bg-[#1A1A1A] text-[#F8F8F6] hover:bg-[#333] text-[13px] font-medium transition-colors"
+            className="inline-flex items-center justify-center rounded-full px-5 h-8 bg-foreground text-foreground-inverse hover:bg-foreground/80 text-[13px] font-medium transition-colors"
           >
             Open Dashboard
           </Link>
@@ -49,20 +49,20 @@ export function Navbar() {
           onClick={() => setMobileOpen(!mobileOpen)}
         >
           {mobileOpen ? (
-            <X className="h-5 w-5 text-[#1A1A1A]" />
+            <X className="h-5 w-5 text-foreground" />
           ) : (
-            <Menu className="h-5 w-5 text-[#1A1A1A]" />
+            <Menu className="h-5 w-5 text-foreground" />
           )}
         </button>
       </div>
 
       {mobileOpen && (
-        <div className="md:hidden bg-[#F8F8F6] border-t border-[#ECECEA]/60 px-6 py-4 space-y-3">
+        <div className="md:hidden bg-background border-t border-border/60 px-6 py-4 space-y-3">
           {navLinks.map((link) => (
             <a
               key={link.label}
               href={link.href}
-              className="block text-[13px] text-[#6B6B6B] hover:text-[#1A1A1A] py-2"
+              className="block text-[13px] text-foreground-secondary hover:text-foreground py-2"
               onClick={() => setMobileOpen(false)}
             >
               {link.label}
@@ -71,7 +71,7 @@ export function Navbar() {
           <div className="pt-2">
             <Link
               href="/dashboard"
-              className="block w-full text-center rounded-full px-5 py-2 bg-[#1A1A1A] text-[#F8F8F6] text-[13px] font-medium"
+              className="block w-full text-center rounded-full px-5 py-2 bg-foreground text-foreground-inverse text-[13px] font-medium"
             >
               Open Dashboard
             </Link>

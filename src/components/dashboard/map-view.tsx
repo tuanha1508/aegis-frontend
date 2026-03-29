@@ -157,7 +157,7 @@ interface MapViewProps {
 export default function MapView({ risks, resources, incidents }: MapViewProps) {
   const [query, setQuery] = useState("");
   const [showDropdown, setShowDropdown] = useState(false);
-  const [tileStyle, setTileStyle] = useState<TileStyle>("light");
+  const [tileStyle, setTileStyle] = useState<TileStyle>("dark");
   const [flyTarget, setFlyTarget] = useState<{
     lat: number;
     lng: number;
@@ -253,6 +253,22 @@ export default function MapView({ risks, resources, incidents }: MapViewProps) {
     inputRef.current?.blur();
   };
 
+  // Auto-locate on first load — show marker but don't pan away from Tampa
+  useEffect(() => {
+    if (!navigator.geolocation) return;
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setUserLocation({
+          lat: pos.coords.latitude,
+          lng: pos.coords.longitude,
+          accuracy: pos.coords.accuracy,
+        });
+      },
+      () => {},
+      { enableHighAccuracy: true, timeout: 10000 }
+    );
+  }, []);
+
   const handleLocateMe = () => {
     if (!navigator.geolocation) return;
     setLocating(true);
@@ -292,7 +308,7 @@ export default function MapView({ risks, resources, incidents }: MapViewProps) {
         <div className="relative">
           <Icon
             icon={icons.search}
-            className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[#6B6B6B]"
+            className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-foreground-secondary"
           />
           <input
             ref={inputRef}
@@ -304,12 +320,12 @@ export default function MapView({ risks, resources, incidents }: MapViewProps) {
             }}
             onFocus={() => setShowDropdown(true)}
             placeholder="Search address, shelter, area..."
-            className="w-full pl-9 pr-8 py-2.5 bg-white/95 backdrop-blur-sm rounded-xl border border-[#E5E4E2] text-sm text-[#1A1A1A] placeholder:text-[#6B6B6B]/50 outline-none focus:border-[#1A1A1A]/30 shadow-sm"
+            className="w-full pl-9 pr-8 py-2.5 bg-surface/95 backdrop-blur-sm rounded-xl border border-border text-sm text-foreground placeholder:text-foreground-secondary/50 outline-none focus:border-foreground/30 shadow-sm"
           />
           {addressLoading && (
             <Icon
               icon={icons.loader}
-              className="absolute right-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[#6B6B6B] animate-spin"
+              className="absolute right-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-foreground-secondary animate-spin"
             />
           )}
           {!addressLoading && query && (
@@ -322,30 +338,30 @@ export default function MapView({ risks, resources, incidents }: MapViewProps) {
             >
               <Icon
                 icon={icons.close}
-                className="h-3.5 w-3.5 text-[#6B6B6B]"
+                className="h-3.5 w-3.5 text-foreground-secondary"
               />
             </button>
           )}
         </div>
 
         {showDropdown && query.trim().length >= 2 && (
-          <div className="mt-1.5 bg-white/95 backdrop-blur-sm rounded-xl border border-[#E5E4E2] shadow-sm overflow-hidden max-h-72 overflow-y-auto">
+          <div className="mt-1.5 bg-surface/95 backdrop-blur-sm rounded-xl border border-border shadow-sm overflow-hidden max-h-72 overflow-y-auto">
             {localFiltered.length > 0 && (
               <>
-                <div className="px-3 py-1.5 text-[10px] uppercase tracking-wider text-[#6B6B6B]/50 bg-[#FAFAF9] border-b border-[#E5E4E2]/40">
+                <div className="px-3 py-1.5 text-[10px] uppercase tracking-wider text-foreground-secondary/50 bg-surface border-b border-border/40">
                   Aegis data
                 </div>
                 {localFiltered.map((item, i) => (
                   <button
                     key={`local-${i}`}
                     onClick={() => handleSelectLocal(item)}
-                    className="w-full text-left px-3.5 py-2.5 hover:bg-[#F0EFED]/50 transition-colors flex items-center justify-between gap-2 border-b border-[#E5E4E2]/40"
+                    className="w-full text-left px-3.5 py-2.5 hover:bg-surface/50 transition-colors flex items-center justify-between gap-2 border-b border-border/40"
                   >
                     <div className="min-w-0">
-                      <p className="text-sm text-[#1A1A1A] truncate">
+                      <p className="text-sm text-foreground truncate">
                         {item.label}
                       </p>
-                      <p className="text-[10px] text-[#6B6B6B] truncate">
+                      <p className="text-[10px] text-foreground-secondary truncate">
                         {item.sub}
                       </p>
                     </div>
@@ -361,24 +377,24 @@ export default function MapView({ risks, resources, incidents }: MapViewProps) {
 
             {addressResults.length > 0 && (
               <>
-                <div className="px-3 py-1.5 text-[10px] uppercase tracking-wider text-[#6B6B6B]/50 bg-[#FAFAF9] border-b border-[#E5E4E2]/40">
+                <div className="px-3 py-1.5 text-[10px] uppercase tracking-wider text-foreground-secondary/50 bg-surface border-b border-border/40">
                   Places
                 </div>
                 {addressResults.map((place, i) => (
                   <button
                     key={`addr-${place.lat}-${place.lng}-${i}`}
                     onClick={() => handleSelectAddress(place)}
-                    className="w-full text-left px-3.5 py-2.5 hover:bg-[#F0EFED]/50 transition-colors flex items-center gap-2.5 border-b border-[#E5E4E2]/40 last:border-0"
+                    className="w-full text-left px-3.5 py-2.5 hover:bg-surface/50 transition-colors flex items-center gap-2.5 border-b border-border/40 last:border-0"
                   >
                     <Icon
                       icon={icons.mapPin}
-                      className="h-3.5 w-3.5 text-[#6B6B6B] shrink-0"
+                      className="h-3.5 w-3.5 text-foreground-secondary shrink-0"
                     />
                     <div className="min-w-0">
-                      <p className="text-sm text-[#1A1A1A] truncate">
+                      <p className="text-sm text-foreground truncate">
                         {place.label}
                       </p>
-                      <p className="text-[10px] text-[#6B6B6B] truncate">
+                      <p className="text-[10px] text-foreground-secondary truncate">
                         {place.sub}
                       </p>
                     </div>
@@ -389,7 +405,7 @@ export default function MapView({ risks, resources, incidents }: MapViewProps) {
 
             {!hasResults && !addressLoading && (
               <div className="px-3.5 py-3 text-center">
-                <p className="text-xs text-[#6B6B6B]">No results</p>
+                <p className="text-xs text-foreground-secondary">No results</p>
               </div>
             )}
           </div>
@@ -399,8 +415,8 @@ export default function MapView({ risks, resources, incidents }: MapViewProps) {
       {/* Right controls — zoom, fullscreen, map style */}
       <div className="absolute top-4 right-4 z-[1000] flex flex-col gap-2 items-end">
         {/* Legend */}
-        <div className="bg-white/95 backdrop-blur-sm rounded-xl border border-[#E5E4E2] p-4 shadow-sm">
-          <p className="text-xs font-medium text-[#1A1A1A] mb-2">
+        <div className="bg-surface/95 backdrop-blur-sm rounded-xl border border-border p-4 shadow-sm">
+          <p className="text-xs font-medium text-foreground mb-2">
             Risk Level
           </p>
           <div className="space-y-1.5">
@@ -415,20 +431,20 @@ export default function MapView({ risks, resources, incidents }: MapViewProps) {
                   className="h-2.5 w-2.5 rounded-full"
                   style={{ backgroundColor: item.color }}
                 />
-                <span className="text-[10px] text-[#6B6B6B]">
+                <span className="text-[10px] text-foreground-secondary">
                   {item.label}
                 </span>
               </div>
             ))}
           </div>
-          <div className="mt-3 pt-2 border-t border-[#E5E4E2]/60 space-y-1.5">
+          <div className="mt-3 pt-2 border-t border-border/60 space-y-1.5">
             <div className="flex items-center gap-2">
               <div className="h-2.5 w-2.5 bg-emerald-500 rounded-sm" />
-              <span className="text-[10px] text-[#6B6B6B]">Shelter</span>
+              <span className="text-[10px] text-foreground-secondary">Shelter</span>
             </div>
             <div className="flex items-center gap-2">
               <div className="h-2.5 w-2.5 bg-orange-500 rounded-sm" />
-              <span className="text-[10px] text-[#6B6B6B]">Incident</span>
+              <span className="text-[10px] text-foreground-secondary">Incident</span>
             </div>
           </div>
         </div>
@@ -437,13 +453,13 @@ export default function MapView({ risks, resources, incidents }: MapViewProps) {
         <div className="relative">
           <button
             onClick={() => setShowStylePicker(!showStylePicker)}
-            className="h-9 w-9 bg-white/95 backdrop-blur-sm rounded-xl border border-[#E5E4E2] shadow-sm flex items-center justify-center hover:bg-[#F0EFED] transition-colors"
+            className="h-9 w-9 bg-surface/95 backdrop-blur-sm rounded-xl border border-border shadow-sm flex items-center justify-center hover:bg-surface transition-colors"
             title="Map style"
           >
-            <Icon icon="ph:stack-bold" className="h-3.5 w-3.5 text-[#1A1A1A]" />
+            <Icon icon="ph:stack-bold" className="h-3.5 w-3.5 text-foreground" />
           </button>
           {showStylePicker && (
-            <div className="absolute top-0 right-11 bg-white/95 backdrop-blur-sm rounded-xl border border-[#E5E4E2] shadow-sm overflow-hidden">
+            <div className="absolute top-0 right-11 bg-surface/95 backdrop-blur-sm rounded-xl border border-border shadow-sm overflow-hidden">
               {(Object.keys(TILE_STYLES) as TileStyle[]).map((key) => (
                 <button
                   key={key}
@@ -451,10 +467,10 @@ export default function MapView({ risks, resources, incidents }: MapViewProps) {
                     setTileStyle(key);
                     setShowStylePicker(false);
                   }}
-                  className={`w-full text-left px-3.5 py-2 text-xs transition-colors border-b border-[#E5E4E2]/40 last:border-0 whitespace-nowrap ${
+                  className={`w-full text-left px-3.5 py-2 text-xs transition-colors border-b border-border/40 last:border-0 whitespace-nowrap ${
                     tileStyle === key
-                      ? "bg-[#F0EFED] text-[#1A1A1A] font-medium"
-                      : "text-[#6B6B6B] hover:bg-[#F0EFED]/50"
+                      ? "bg-surface text-foreground font-medium"
+                      : "text-foreground-secondary hover:bg-surface/50"
                   }`}
                 >
                   {TILE_STYLES[key].label}
@@ -470,27 +486,27 @@ export default function MapView({ risks, resources, incidents }: MapViewProps) {
         <button
           onClick={handleLocateMe}
           disabled={locating}
-          className="h-10 w-10 bg-white/95 backdrop-blur-sm rounded-xl border border-[#E5E4E2] shadow-sm flex items-center justify-center hover:bg-[#F0EFED] transition-colors disabled:opacity-50"
+          className="h-10 w-10 bg-surface/95 backdrop-blur-sm rounded-xl border border-border shadow-sm flex items-center justify-center hover:bg-surface transition-colors disabled:opacity-50"
           title="My location"
         >
           {locating ? (
             <Icon
               icon={icons.loader}
-              className="h-4 w-4 text-[#6B6B6B] animate-spin"
+              className="h-4 w-4 text-foreground-secondary animate-spin"
             />
           ) : (
             <Icon
               icon={icons.navigation}
-              className="h-4 w-4 text-[#1A1A1A]"
+              className="h-4 w-4 text-foreground"
             />
           )}
         </button>
         <button
           onClick={handleResetView}
-          className="h-10 w-10 bg-white/95 backdrop-blur-sm rounded-xl border border-[#E5E4E2] shadow-sm flex items-center justify-center hover:bg-[#F0EFED] transition-colors"
+          className="h-10 w-10 bg-surface/95 backdrop-blur-sm rounded-xl border border-border shadow-sm flex items-center justify-center hover:bg-surface transition-colors"
           title="Reset to Tampa Bay"
         >
-          <Icon icon={icons.compass} className="h-4 w-4 text-[#1A1A1A]" />
+          <Icon icon={icons.compass} className="h-4 w-4 text-foreground" />
         </button>
       </div>
 
@@ -648,20 +664,20 @@ export default function MapView({ risks, resources, incidents }: MapViewProps) {
 
       {/* Right bottom — zoom + fullscreen (outside MapContainer, using mapRef) */}
       <div className="absolute bottom-6 right-4 z-[1000] flex flex-col gap-2">
-        <div className="flex flex-col gap-0 rounded-xl overflow-hidden border border-[#E5E4E2] shadow-sm">
+        <div className="flex flex-col gap-0 rounded-xl overflow-hidden border border-border shadow-sm">
           <button
             onClick={() => mapRef.current?.zoomIn()}
-            className="h-9 w-9 bg-white/95 backdrop-blur-sm flex items-center justify-center hover:bg-[#F0EFED] transition-colors border-b border-[#E5E4E2]"
+            className="h-9 w-9 bg-surface/95 backdrop-blur-sm flex items-center justify-center hover:bg-surface transition-colors border-b border-border"
             title="Zoom in"
           >
-            <Icon icon="ph:plus-bold" className="h-3.5 w-3.5 text-[#1A1A1A]" />
+            <Icon icon="ph:plus-bold" className="h-3.5 w-3.5 text-foreground" />
           </button>
           <button
             onClick={() => mapRef.current?.zoomOut()}
-            className="h-9 w-9 bg-white/95 backdrop-blur-sm flex items-center justify-center hover:bg-[#F0EFED] transition-colors"
+            className="h-9 w-9 bg-surface/95 backdrop-blur-sm flex items-center justify-center hover:bg-surface transition-colors"
             title="Zoom out"
           >
-            <Icon icon="ph:minus-bold" className="h-3.5 w-3.5 text-[#1A1A1A]" />
+            <Icon icon="ph:minus-bold" className="h-3.5 w-3.5 text-foreground" />
           </button>
         </div>
         <button
@@ -674,12 +690,12 @@ export default function MapView({ risks, resources, incidents }: MapViewProps) {
               document.exitFullscreen?.();
             }
           }}
-          className="h-9 w-9 bg-white/95 backdrop-blur-sm rounded-xl border border-[#E5E4E2] shadow-sm flex items-center justify-center hover:bg-[#F0EFED] transition-colors"
+          className="h-9 w-9 bg-surface/95 backdrop-blur-sm rounded-xl border border-border shadow-sm flex items-center justify-center hover:bg-surface transition-colors"
           title={isFullscreen ? "Exit fullscreen" : "Fullscreen"}
         >
           <Icon
             icon={isFullscreen ? "ph:corners-in-bold" : "ph:corners-out-bold"}
-            className="h-3.5 w-3.5 text-[#1A1A1A]"
+            className="h-3.5 w-3.5 text-foreground"
           />
         </button>
       </div>

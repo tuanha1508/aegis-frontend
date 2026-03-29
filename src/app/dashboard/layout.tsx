@@ -1,4 +1,5 @@
 import { Sidebar } from "@/components/dashboard/sidebar";
+import { AlertBanner } from "@/components/dashboard/alert-banner";
 
 export default function DashboardLayout({
   children,
@@ -6,9 +7,10 @@ export default function DashboardLayout({
   children: React.ReactNode;
 }) {
   return (
-    <div className="min-h-screen bg-[#F8F8F6]">
+    <div className="min-h-screen bg-background">
       <Sidebar />
-      <main className="md:pl-56">
+      <main className="md:pl-52">
+        <AlertBanner />
         <div className="pt-16 md:pt-0">{children}</div>
       </main>
     </div>

@@ -7,8 +7,8 @@ import { getRisk, getResources, getIncidents } from "@/lib/api";
 const MapView = dynamic(() => import("@/components/dashboard/map-view"), {
   ssr: false,
   loading: () => (
-    <div className="h-full flex items-center justify-center bg-[#F0EFED]">
-      <p className="text-sm text-[#6B6B6B]">Loading map...</p>
+    <div className="h-full flex items-center justify-center bg-surface">
+      <p className="text-sm text-foreground-secondary">Loading map...</p>
     </div>
   ),
 });

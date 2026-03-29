@@ -148,3 +148,114 @@ export interface MatchResponse {
   reviewed_by: string | null;
   created_at: string | null;
 }
+
+// ─── Live Data Types ─────────────────────────────────────
+
+export interface WaterStation {
+  station_id: string;
+  name: string;
+  lat: number;
+  lng: number;
+  current_level_ft: number;
+  trend: "rising" | "falling" | "stable";
+  change_1h: number;
+  readings_24h: { time: string; value: number }[];
+  flood_stage_ft: number;
+  percent_of_flood: number;
+  last_updated: string;
+}
+
+export interface WaterLevelsResponse {
+  stations: WaterStation[];
+  fetched_at: string;
+}
+
+export interface TideData {
+  station: string;
+  current_level_ft: number;
+  datum: string;
+  observations_24h: { time: string; level_ft: number }[];
+  next_high_tide: { time: string; level_ft: number } | null;
+  next_low_tide: { time: string; level_ft: number } | null;
+  tide_predictions: { time: string; level_ft: number; type: "high" | "low" }[];
+  fetched_at: string;
+}
+
+export interface CurrentWeather {
+  station: string;
+  temperature_f: number;
+  wind_speed_mph: number;
+  wind_gust_mph: number | null;
+  wind_direction: string;
+  wind_direction_degrees: number;
+  barometric_pressure_inhg: number;
+  humidity_percent: number;
+  conditions: string;
+  observed_at: string;
+  fetched_at: string;
+}
+
+export interface WeatherAlert {
+  event: string;
+  headline: string;
+  description: string;
+  severity: "Extreme" | "Severe" | "Moderate" | "Minor" | "Unknown";
+  urgency: string;
+  onset: string;
+  expires: string;
+  sender: string;
+  areas: string;
+}
+
+export interface WeatherAlertsResponse {
+  zone: string;
+  active_count: number;
+  alerts: WeatherAlert[];
+  fetched_at: string;
+}
+
+export interface NewsItem {
+  source: string;
+  title: string;
+  summary: string;
+  url: string;
+  published_at: string;
+  severity: "extreme" | "severe" | "moderate" | "minor";
+  category: "hurricane" | "flood" | "tornado" | "thunderstorm" | "other";
+}
+
+export interface NewsFeedResponse {
+  items: NewsItem[];
+  source_count: number;
+  total_items: number;
+  fetched_at: string;
+}
+
+export interface LiveStream {
+  name: string;
+  description: string;
+  youtube_channel_url: string;
+  live_url: string;
+  embed_url: string | null;
+  is_local: boolean;
+}
+
+export interface LiveStreamsResponse {
+  streams: LiveStream[];
+}
+
+export interface ForecastPeriod {
+  name: string;
+  temperature_f: number;
+  wind_speed: string;
+  wind_direction: string;
+  short_forecast: string;
+  detailed_forecast: string;
+  is_daytime: boolean;
+}
+
+export interface ForecastResponse {
+  location: string;
+  periods: ForecastPeriod[];
+  fetched_at: string;
+}

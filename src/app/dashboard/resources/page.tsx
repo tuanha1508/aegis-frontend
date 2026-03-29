@@ -26,7 +26,7 @@ export default function ResourcesPage() {
   if (loading) {
     return (
       <div className="p-6 md:p-8">
-        <p className="text-sm text-[#6B6B6B]">Loading...</p>
+        <p className="text-sm text-foreground-secondary">Loading...</p>
       </div>
     );
   }
@@ -35,9 +35,9 @@ export default function ResourcesPage() {
     <div className="p-6 md:p-8 max-w-5xl">
       {/* Header with stats inline */}
       <div className="flex flex-col sm:flex-row sm:items-baseline justify-between gap-2 mb-8">
-        <h1 className="text-2xl font-semibold text-[#1A1A1A]">Resources</h1>
+        <h1 className="text-2xl font-semibold text-foreground">Resources</h1>
         {shelters.length > 0 && (
-          <p className="text-sm text-[#6B6B6B]">
+          <p className="text-sm text-foreground-secondary">
             {open.length} open &middot; {totalCapacity} spots available
           </p>
         )}
@@ -45,13 +45,13 @@ export default function ResourcesPage() {
 
       {shelters.length === 0 && (
         <div className="flex items-center justify-center min-h-[60vh]">
-          <p className="text-sm text-[#6B6B6B]/50">No resources available</p>
+          <p className="text-sm text-foreground-secondary/50">No resources available</p>
         </div>
       )}
 
       {/* Table-like layout for shelters */}
       {shelters.length > 0 && (
-        <div className="border border-[#E5E4E2] rounded-xl overflow-hidden">
+        <div className="border border-border rounded-xl overflow-hidden">
           {shelters.map((shelter, i) => {
             const pct = shelter.capacity
               ? Math.round((shelter.current_occupancy / shelter.capacity) * 100)
@@ -65,16 +65,16 @@ export default function ResourcesPage() {
               <div
                 key={shelter.id}
                 className={`p-5 flex flex-col sm:flex-row sm:items-center gap-4 ${
-                  i < shelters.length - 1 ? "border-b border-[#E5E4E2]" : ""
+                  i < shelters.length - 1 ? "border-b border-border" : ""
                 }`}
               >
                 {/* Name + address */}
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-[#1A1A1A]">
+                  <p className="text-sm font-medium text-foreground">
                     {shelter.name}
                   </p>
                   {shelter.address && (
-                    <p className="text-xs text-[#6B6B6B] mt-0.5 truncate">
+                    <p className="text-xs text-foreground-secondary mt-0.5 truncate">
                       {shelter.address}
                     </p>
                   )}
@@ -87,7 +87,7 @@ export default function ResourcesPage() {
                           <Icon
                             key={a}
                             icon={ic}
-                            className="h-3.5 w-3.5 text-[#6B6B6B]/40"
+                            className="h-3.5 w-3.5 text-foreground-secondary/40"
                             aria-label={a.replace(/_/g, " ")}
                           />
                         ) : null;
@@ -99,7 +99,7 @@ export default function ResourcesPage() {
                 {/* Capacity */}
                 <div className="w-40 shrink-0">
                   <div className="flex items-baseline justify-between text-xs mb-1">
-                    <span className="text-[#6B6B6B]">
+                    <span className="text-foreground-secondary">
                       {shelter.current_occupancy}/{shelter.capacity ?? "?"}
                     </span>
                     <span
@@ -114,7 +114,7 @@ export default function ResourcesPage() {
                       {spotsLeft > 0 ? `${spotsLeft} left` : "Full"}
                     </span>
                   </div>
-                  <div className="h-1.5 rounded-full bg-[#E5E4E2] overflow-hidden">
+                  <div className="h-1.5 rounded-full bg-border overflow-hidden">
                     <div
                       className={`h-full rounded-full ${
                         pct > 90

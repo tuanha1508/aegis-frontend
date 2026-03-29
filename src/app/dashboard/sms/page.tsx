@@ -140,15 +140,15 @@ export default function SMSPage() {
   return (
     <div className="h-[calc(100vh-4rem)] md:h-screen flex flex-col max-w-2xl mx-auto">
       {/* Header */}
-      <div className="px-6 py-4 border-b border-[#E5E4E2] flex items-center gap-3">
-        <div className="h-9 w-9 rounded-xl bg-[#1A1A1A] flex items-center justify-center">
-          <Icon icon={icons.chatText} className="h-4.5 w-4.5 text-[#F8F8F6]" />
+      <div className="px-6 py-4 border-b border-border flex items-center gap-3">
+        <div className="h-9 w-9 rounded-xl bg-foreground flex items-center justify-center">
+          <Icon icon={icons.chatText} className="h-4.5 w-4.5 text-foreground-inverse" />
         </div>
         <div>
-          <h1 className="text-base font-semibold text-[#1A1A1A]">
+          <h1 className="text-base font-semibold text-foreground">
             SMS Simulator
           </h1>
-          <p className="text-[10px] text-[#6B6B6B]">
+          <p className="text-[10px] text-foreground-secondary">
             Report emergencies via text — powered by AI
           </p>
         </div>
@@ -160,12 +160,12 @@ export default function SMSPage() {
           <div className="flex flex-col items-center justify-center h-full text-center">
             <Icon
               icon={icons.chatText}
-              className="h-10 w-10 text-[#E5E4E2] mb-3"
+              className="h-10 w-10 text-[#E8E5E0] mb-3"
             />
-            <p className="text-sm text-[#6B6B6B] mb-1">
+            <p className="text-sm text-foreground-secondary mb-1">
               Send a message to report an emergency
             </p>
-            <p className="text-xs text-[#6B6B6B]/60">
+            <p className="text-xs text-foreground-secondary/60">
               The AI agent will parse your report and extract key details
             </p>
           </div>
@@ -181,10 +181,10 @@ export default function SMSPage() {
                 <div
                   className={`max-w-[85%] rounded-2xl px-4 py-2.5 text-sm leading-relaxed ${
                     msg.role === "user"
-                      ? "bg-[#1A1A1A] text-[#F8F8F6] rounded-br-md"
+                      ? "bg-foreground text-foreground-inverse rounded-br-md"
                       : msg.error
                         ? "bg-red-50 text-red-800 border border-red-200 rounded-bl-md"
-                        : "bg-white border border-[#E5E4E2] text-[#1A1A1A] rounded-bl-md"
+                        : "bg-surface border border-border text-foreground rounded-bl-md"
                   }`}
                 >
                   {msg.text}
@@ -197,7 +197,7 @@ export default function SMSPage() {
                   <div className="max-w-[85%]">
                     <button
                       onClick={() => toggleReport(msg.id)}
-                      className="text-[10px] text-[#6B6B6B] hover:text-[#1A1A1A] transition-colors flex items-center gap-1 mb-1"
+                      className="text-[10px] text-foreground-secondary hover:text-foreground transition-colors flex items-center gap-1 mb-1"
                     >
                       <Icon
                         icon={icons.chevronRight}
@@ -207,18 +207,18 @@ export default function SMSPage() {
                     </button>
 
                     {expandedReports.has(msg.id) && (
-                      <div className="bg-[#FAFAF9] border border-[#E5E4E2] rounded-xl p-3.5 space-y-2.5">
+                      <div className="bg-surface border border-border rounded-xl p-3.5 space-y-2.5">
                         {msg.report.location_text && (
                           <div className="flex items-center gap-2">
                             <Icon
                               icon={icons.mapPin}
-                              className="h-3.5 w-3.5 text-[#6B6B6B] shrink-0"
+                              className="h-3.5 w-3.5 text-foreground-secondary shrink-0"
                             />
-                            <span className="text-xs text-[#1A1A1A]">
+                            <span className="text-xs text-foreground">
                               {msg.report.location_text}
                             </span>
                             {msg.report.lat && msg.report.lng && (
-                              <span className="text-[10px] text-[#6B6B6B]/50">
+                              <span className="text-[10px] text-foreground-secondary/50">
                                 {msg.report.lat.toFixed(3)},{" "}
                                 {msg.report.lng.toFixed(3)}
                               </span>
@@ -230,11 +230,11 @@ export default function SMSPage() {
                           <div className="flex items-center gap-2">
                             <Icon
                               icon={icons.alert}
-                              className="h-3.5 w-3.5 text-[#6B6B6B] shrink-0"
+                              className="h-3.5 w-3.5 text-foreground-secondary shrink-0"
                             />
                             <Badge
                               variant="secondary"
-                              className={`text-[10px] px-2 py-0.5 ${incidentColors[msg.report.incident_type] ?? "bg-[#F0EFED] text-[#6B6B6B]"}`}
+                              className={`text-[10px] px-2 py-0.5 ${incidentColors[msg.report.incident_type] ?? "bg-surface text-foreground-secondary"}`}
                             >
                               {msg.report.incident_type.replace(/_/g, " ")}
                             </Badge>
@@ -246,9 +246,9 @@ export default function SMSPage() {
                             <div className="flex items-center gap-1.5">
                               <Icon
                                 icon={icons.users}
-                                className="h-3.5 w-3.5 text-[#6B6B6B]"
+                                className="h-3.5 w-3.5 text-foreground-secondary"
                               />
-                              <span className="text-xs text-[#1A1A1A]">
+                              <span className="text-xs text-foreground">
                                 {msg.report.people_mentioned} people
                               </span>
                             </div>
@@ -266,9 +266,9 @@ export default function SMSPage() {
                         <div className="flex items-center gap-2">
                           <Icon
                             icon="ph:translate-bold"
-                            className="h-3.5 w-3.5 text-[#6B6B6B] shrink-0"
+                            className="h-3.5 w-3.5 text-foreground-secondary shrink-0"
                           />
-                          <span className="text-xs text-[#6B6B6B]">
+                          <span className="text-xs text-foreground-secondary">
                             {msg.report.language === "es"
                               ? "Spanish"
                               : msg.report.language === "en"
@@ -287,10 +287,10 @@ export default function SMSPage() {
           {/* Typing indicator */}
           {loading && (
             <div className="flex justify-start">
-              <div className="bg-white border border-[#E5E4E2] rounded-2xl rounded-bl-md px-4 py-3 flex items-center gap-1">
-                <div className="h-1.5 w-1.5 rounded-full bg-[#6B6B6B]/40 animate-bounce [animation-delay:0ms]" />
-                <div className="h-1.5 w-1.5 rounded-full bg-[#6B6B6B]/40 animate-bounce [animation-delay:150ms]" />
-                <div className="h-1.5 w-1.5 rounded-full bg-[#6B6B6B]/40 animate-bounce [animation-delay:300ms]" />
+              <div className="bg-surface border border-border rounded-2xl rounded-bl-md px-4 py-3 flex items-center gap-1">
+                <div className="h-1.5 w-1.5 rounded-full bg-[#7A8C81]/40 animate-bounce [animation-delay:0ms]" />
+                <div className="h-1.5 w-1.5 rounded-full bg-[#7A8C81]/40 animate-bounce [animation-delay:150ms]" />
+                <div className="h-1.5 w-1.5 rounded-full bg-[#7A8C81]/40 animate-bounce [animation-delay:300ms]" />
               </div>
             </div>
           )}
@@ -304,7 +304,7 @@ export default function SMSPage() {
             <button
               key={text}
               onClick={() => sendMessage(text)}
-              className="text-xs bg-white border border-[#E5E4E2] rounded-full px-3 py-1.5 text-[#6B6B6B] hover:text-[#1A1A1A] hover:border-[#D5D4D2] transition-colors text-left"
+              className="text-xs bg-surface border border-border rounded-full px-3 py-1.5 text-foreground-secondary hover:text-foreground hover:border-border-strong transition-colors text-left"
             >
               {text}
             </button>
@@ -315,7 +315,7 @@ export default function SMSPage() {
       {/* Input */}
       <form
         onSubmit={handleSubmit}
-        className="px-6 py-4 border-t border-[#E5E4E2] flex gap-2"
+        className="px-6 py-4 border-t border-border flex gap-2"
       >
         <input
           ref={inputRef}
@@ -324,14 +324,14 @@ export default function SMSPage() {
           onChange={(e) => setInput(e.target.value)}
           placeholder="Describe the emergency..."
           disabled={loading}
-          className="flex-1 px-4 py-2.5 bg-white border border-[#E5E4E2] rounded-xl text-sm text-[#1A1A1A] placeholder:text-[#6B6B6B]/50 outline-none focus:border-[#1A1A1A]/30 disabled:opacity-50"
+          className="flex-1 px-4 py-2.5 bg-surface border border-border rounded-xl text-sm text-foreground placeholder:text-foreground-secondary/50 outline-none focus:border-foreground/30 disabled:opacity-50"
         />
         <button
           type="submit"
           disabled={!input.trim() || loading}
-          className="h-10 w-10 rounded-xl bg-[#1A1A1A] flex items-center justify-center hover:bg-[#2A2A2A] transition-colors disabled:opacity-30 shrink-0"
+          className="h-10 w-10 rounded-xl bg-foreground flex items-center justify-center hover:bg-foreground/80 transition-colors disabled:opacity-30 shrink-0"
         >
-          <Icon icon={icons.send} className="h-4 w-4 text-[#F8F8F6]" />
+          <Icon icon={icons.send} className="h-4 w-4 text-foreground-inverse" />
         </button>
       </form>
     </div>

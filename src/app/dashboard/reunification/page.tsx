@@ -14,12 +14,13 @@ import {
   getFound,
   reportFound,
   getMatches,
+  reviewMatch,
 } from "@/lib/api";
 
 export default function ReunificationPage() {
   const { data: missing, refetch: refetchMissing } = useApi(getMissing);
   const { data: found, refetch: refetchFound } = useApi(getFound);
-  const { data: matches } = useApi(getMatches);
+  const { data: matches, refetch: refetchMatches } = useApi(getMatches);
 
   const [missingForm, setMissingForm] = useState({
     name: "",
@@ -80,10 +81,10 @@ export default function ReunificationPage() {
   return (
     <div className="p-6 md:p-8 max-w-4xl">
       <div className="mb-8">
-        <h1 className="text-2xl font-semibold text-[#1A1A1A]">
+        <h1 className="text-2xl font-semibold text-foreground">
           Family Reunification
         </h1>
-        <p className="text-sm text-[#6B6B6B] mt-0.5">
+        <p className="text-sm text-foreground-secondary mt-0.5">
           Report missing or found persons and view potential matches
         </p>
       </div>
@@ -125,9 +126,9 @@ export default function ReunificationPage() {
         <TabsContent value="missing" className="space-y-4">
           <form
             onSubmit={handleReportMissing}
-            className="bg-white rounded-xl border border-[#E5E4E2] p-5"
+            className="bg-surface rounded-xl border border-border p-5"
           >
-            <p className="text-sm font-medium text-[#1A1A1A] mb-3">
+            <p className="text-sm font-medium text-foreground mb-3">
               Report a missing person
             </p>
             <div className="grid sm:grid-cols-2 gap-3 mb-3">
@@ -188,7 +189,7 @@ export default function ReunificationPage() {
                 !missingForm.name || !missingForm.reported_by || submitting
               }
               size="sm"
-              className="rounded-lg bg-[#1A1A1A] text-[#F8F8F6] hover:bg-[#2A2A2A]"
+              className="rounded-lg bg-foreground text-foreground-inverse hover:bg-foreground/80"
             >
               Report Missing
             </Button>
@@ -197,26 +198,26 @@ export default function ReunificationPage() {
           {missing?.map((person) => (
             <div
               key={person.id}
-              className="bg-white rounded-xl border border-[#E5E4E2] p-5"
+              className="bg-surface rounded-xl border border-border p-5"
             >
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <div className="flex items-center gap-2 mb-1">
-                    <h3 className="text-sm font-medium text-[#1A1A1A]">
+                    <h3 className="text-sm font-medium text-foreground">
                       {person.name}
                     </h3>
                     {person.age && (
-                      <span className="text-xs text-[#6B6B6B]">
+                      <span className="text-xs text-foreground-secondary">
                         Age {person.age}
                       </span>
                     )}
                   </div>
                   {person.description && (
-                    <p className="text-sm text-[#6B6B6B] mb-2">
+                    <p className="text-sm text-foreground-secondary mb-2">
                       {person.description}
                     </p>
                   )}
-                  <div className="flex flex-wrap gap-2 text-[10px] text-[#6B6B6B]/60">
+                  <div className="flex flex-wrap gap-2 text-[10px] text-foreground-secondary/60">
                     {person.last_known_location && (
                       <span>Last seen: {person.last_known_location}</span>
                     )}
@@ -235,8 +236,8 @@ export default function ReunificationPage() {
 
           {(!missing || missing.length === 0) && (
             <div className="text-center py-8">
-              <Icon icon={icons.users} className="h-8 w-8 text-[#E5E4E2] mx-auto mb-2" />
-              <p className="text-sm text-[#6B6B6B]">
+              <Icon icon={icons.users} className="h-8 w-8 text-[#E8E5E0] mx-auto mb-2" />
+              <p className="text-sm text-foreground-secondary">
                 No missing person reports
               </p>
             </div>
@@ -247,9 +248,9 @@ export default function ReunificationPage() {
         <TabsContent value="found" className="space-y-4">
           <form
             onSubmit={handleReportFound}
-            className="bg-white rounded-xl border border-[#E5E4E2] p-5"
+            className="bg-surface rounded-xl border border-border p-5"
           >
-            <p className="text-sm font-medium text-[#1A1A1A] mb-3">
+            <p className="text-sm font-medium text-foreground mb-3">
               Report a found person
             </p>
             <div className="grid sm:grid-cols-2 gap-3 mb-3">
@@ -282,7 +283,7 @@ export default function ReunificationPage() {
               type="submit"
               disabled={!foundForm.name || submitting}
               size="sm"
-              className="rounded-lg bg-[#1A1A1A] text-[#F8F8F6] hover:bg-[#2A2A2A]"
+              className="rounded-lg bg-foreground text-foreground-inverse hover:bg-foreground/80"
             >
               Report Found
             </Button>
@@ -291,19 +292,19 @@ export default function ReunificationPage() {
           {found?.map((person) => (
             <div
               key={person.id}
-              className="bg-white rounded-xl border border-[#E5E4E2] p-5"
+              className="bg-surface rounded-xl border border-border p-5"
             >
               <div className="flex items-start justify-between gap-3">
                 <div>
-                  <h3 className="text-sm font-medium text-[#1A1A1A] mb-1">
+                  <h3 className="text-sm font-medium text-foreground mb-1">
                     {person.name}
                   </h3>
                   {person.description && (
-                    <p className="text-sm text-[#6B6B6B] mb-2">
+                    <p className="text-sm text-foreground-secondary mb-2">
                       {person.description}
                     </p>
                   )}
-                  <div className="flex flex-wrap gap-2 text-[10px] text-[#6B6B6B]/60">
+                  <div className="flex flex-wrap gap-2 text-[10px] text-foreground-secondary/60">
                     {person.found_at && <span>Found at: {person.found_at}</span>}
                     {person.age_approx && (
                       <span>Approx age: {person.age_approx}</span>
@@ -322,8 +323,8 @@ export default function ReunificationPage() {
 
           {(!found || found.length === 0) && (
             <div className="text-center py-8">
-              <Icon icon={icons.userCheck} className="h-8 w-8 text-[#E5E4E2] mx-auto mb-2" />
-              <p className="text-sm text-[#6B6B6B]">No found person reports</p>
+              <Icon icon={icons.userCheck} className="h-8 w-8 text-[#E8E5E0] mx-auto mb-2" />
+              <p className="text-sm text-foreground-secondary">No found person reports</p>
             </div>
           )}
         </TabsContent>
@@ -333,7 +334,7 @@ export default function ReunificationPage() {
           {matches?.map((match) => (
             <div
               key={match.id}
-              className="bg-white rounded-xl border border-[#E5E4E2] p-5"
+              className="bg-surface rounded-xl border border-border p-5"
             >
               <div className="flex items-center justify-between mb-3">
                 <Badge
@@ -343,7 +344,7 @@ export default function ReunificationPage() {
                       ? "bg-emerald-50 text-emerald-700"
                       : match.confidence >= 0.5
                         ? "bg-amber-50 text-amber-700"
-                        : "bg-[#F0EFED] text-[#6B6B6B]"
+                        : "bg-surface text-foreground-secondary"
                   }`}
                 >
                   {Math.round(match.confidence * 100)}% confidence
@@ -360,7 +361,7 @@ export default function ReunificationPage() {
                   <p className="text-[10px] uppercase tracking-wider text-red-600 mb-1">
                     Missing #{match.missing_id}
                   </p>
-                  <p className="text-sm text-[#1A1A1A]">
+                  <p className="text-sm text-foreground">
                     {missing?.find((m) => m.id === match.missing_id)?.name ??
                       `ID: ${match.missing_id}`}
                   </p>
@@ -369,15 +370,47 @@ export default function ReunificationPage() {
                   <p className="text-[10px] uppercase tracking-wider text-emerald-600 mb-1">
                     Found #{match.found_id}
                   </p>
-                  <p className="text-sm text-[#1A1A1A]">
+                  <p className="text-sm text-foreground">
                     {found?.find((f) => f.id === match.found_id)?.name ??
                       `ID: ${match.found_id}`}
                   </p>
                 </div>
               </div>
               {match.match_factors && (
-                <p className="text-xs text-[#6B6B6B] mt-3">
+                <p className="text-xs text-foreground-secondary mt-3">
                   Factors: {match.match_factors}
+                </p>
+              )}
+              {match.status === "pending" && (
+                <div className="flex gap-2 mt-4">
+                  <button
+                    onClick={async () => {
+                      await reviewMatch(match.id, "confirmed");
+                      refetchMatches();
+                    }}
+                    className="px-3 py-1.5 text-xs font-medium rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 transition-colors"
+                  >
+                    Confirm
+                  </button>
+                  <button
+                    onClick={async () => {
+                      await reviewMatch(match.id, "rejected");
+                      refetchMatches();
+                    }}
+                    className="px-3 py-1.5 text-xs font-medium rounded-lg border border-border text-foreground-secondary hover:bg-surface transition-colors"
+                  >
+                    Reject
+                  </button>
+                </div>
+              )}
+              {match.status === "confirmed" && (
+                <p className="text-xs text-emerald-600 font-medium mt-3">
+                  Confirmed
+                </p>
+              )}
+              {match.status === "rejected" && (
+                <p className="text-xs text-foreground-muted line-through mt-3">
+                  Rejected
                 </p>
               )}
             </div>
@@ -385,8 +418,8 @@ export default function ReunificationPage() {
 
           {(!matches || matches.length === 0) && (
             <div className="text-center py-8">
-              <Icon icon={icons.link} className="h-8 w-8 text-[#E5E4E2] mx-auto mb-2" />
-              <p className="text-sm text-[#6B6B6B]">No matches</p>
+              <Icon icon={icons.link} className="h-8 w-8 text-[#E8E5E0] mx-auto mb-2" />
+              <p className="text-sm text-foreground-secondary">No matches</p>
             </div>
           )}
         </TabsContent>
