@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 import Link from "next/link";
 import { Icon } from "@iconify/react";
 import { icons } from "@/lib/icons";
@@ -45,7 +45,7 @@ export default function DashboardPage() {
   const {
     phase, alerts, resources, reports, incidents, recoveryBriefs, assignments, auditLog,
     weather, waterLevels, tides, nwsAlerts, news, streams, lastUpdated,
-    refetchPhase, refetchAlerts, refetchIncidents,
+    refetchPhase, refetchAlerts, refetchIncidents, refetchLive,
   } = useDashboard();
   const [expandedAlert, setExpandedAlert] = useState<number | null>(null);
   const [showOperator, setShowOperator] = useState(false);
@@ -53,6 +53,8 @@ export default function DashboardPage() {
   const [schedulerRunning, setSchedulerRunning] = useState(false);
   const [commanderQuery, setCommanderQuery] = useState("");
   const [commanderResponse, setCommanderResponse] = useState<string | null>(null);
+  const [autoPlaying, setAutoPlaying] = useState(false);
+  const autoPlayRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const currentPhase = phase?.current_phase ?? "pre_storm";
   const config = phaseConfig[currentPhase];
@@ -62,7 +64,7 @@ export default function DashboardPage() {
   // Only show storm data (alerts, incidents, reports) during active_storm
   const stormAlerts = stormActive ? (alerts ?? []) : [];
   const criticalAlerts = stormAlerts.filter((a) => a.priority === "critical" || a.priority === "emergency");
-  const severeNWS = nwsAlerts?.alerts.filter((a) => a.severity === "Extreme" || a.severity === "Severe") ?? [];
+  const severeNWS = nwsAlerts?.alerts?.filter((a) => a.severity === "Extreme" || a.severity === "Severe") ?? [];
   const stations = waterLevels?.stations ?? [];
   const hasFloodWarning = stations.some((s) => s.percent_of_flood > 80);
   const highWind = weather && weather.wind_speed_mph > 40;
@@ -140,12 +142,27 @@ export default function DashboardPage() {
             <div className="h-2 w-2 rounded-full bg-accent" />
             <span className="text-[9px] font-mono font-bold text-accent uppercase tracking-widest">Operator Controls</span>
           </div>
-          <div className="flex flex-wrap gap-1.5">
+          <div className="flex flex-wrap gap-1.5 items-center">
             {/* Phase controls */}
-            {(["pre_storm", "active_storm", "post_storm"] as Phase[]).map((p) => (
+            {(["pre_storm", "active_storm", "post_storm"] as Phase[]).map((p) => {
+              const scenarioMap: Record<string, string> = {
+                pre_storm: "storm_warning_24h",
+                active_storm: "storm_landfall",
+                post_storm: "storm_post_1d",
+              };
+              return (
               <button
                 key={p}
-                onClick={() => runAgent("phase", () => setPhase(p))}
+                onClick={async () => {
+                  if (autoPlaying) return;
+                  await setPhase(p);
+                  await setScenario(scenarioMap[p] ?? "storm_none");
+                  localStorage.removeItem("aegis-api-live");
+                  refetchPhase();
+                  refetchAlerts();
+                  refetchIncidents();
+                  refetchLive();
+                }}
                 className={`text-[9px] font-mono px-2 py-1 rounded border transition-colors ${
                   currentPhase === p
                     ? "bg-foreground text-foreground-inverse border-foreground"
@@ -154,28 +171,54 @@ export default function DashboardPage() {
               >
                 {p.replace(/_/g, " ").toUpperCase()}
               </button>
-            ))}
+              );
+            })}
             <div className="h-5 w-px bg-border mx-1" />
-            {/* Core actions */}
+            {/* Auto-play demo */}
             <button
-              onClick={() => runAgent("orchestrate", () => triggerOrchestrate())}
-              disabled={agentLoading !== null}
-              className="text-[9px] font-mono px-2 py-1 rounded border border-accent/30 bg-accent/10 text-accent hover:bg-accent/20 transition-colors disabled:opacity-30"
+              onClick={() => {
+                if (autoPlaying) {
+                  // Stop
+                  if (autoPlayRef.current) clearTimeout(autoPlayRef.current);
+                  setAutoPlaying(false);
+                  return;
+                }
+                setAutoPlaying(true);
+                // Demo timeline: 8 steps × 5 seconds each
+                const timeline: { delay: number; phase: string; scenario: string }[] = [
+                  { delay: 0,     phase: "pre_storm",    scenario: "storm_watch_72h" },
+                  { delay: 5000,  phase: "pre_storm",    scenario: "storm_warning_24h" },
+                  { delay: 10000, phase: "pre_storm",    scenario: "storm_imminent_6h" },
+                  { delay: 15000, phase: "active_storm", scenario: "storm_imminent_6h" },
+                  { delay: 20000, phase: "active_storm", scenario: "storm_landfall" },
+                  { delay: 25000, phase: "active_storm", scenario: "storm_landfall" },
+                  { delay: 30000, phase: "post_storm",   scenario: "storm_post_1d" },
+                  { delay: 35000, phase: "post_storm",   scenario: "storm_post_3d" },
+                  { delay: 40000, phase: "post_storm",   scenario: "storm_post_5d" },
+                ];
+                timeline.forEach(({ delay, phase: p, scenario: s }) => {
+                  setTimeout(async () => {
+                    await setPhase(p as Phase);
+                    await setScenario(s);
+                    localStorage.removeItem("aegis-api-live");
+                    refetchPhase();
+                    refetchAlerts();
+                    refetchIncidents();
+                    refetchLive();
+                  }, delay);
+                  if (delay === timeline[timeline.length - 1].delay) {
+                    autoPlayRef.current = setTimeout(() => setAutoPlaying(false), delay + 5000);
+                  }
+                });
+              }}
+              className={`text-[9px] font-mono px-3 py-1 rounded border transition-colors ${
+                autoPlaying
+                  ? "bg-destructive/20 border-destructive/30 text-destructive"
+                  : "border-accent/30 bg-accent/10 text-accent hover:bg-accent/20"
+              }`}
             >
-              {agentLoading === "orchestrate" ? "..." : "▶ RUN ALL AGENTS"}
+              {autoPlaying ? "⏹ STOP" : "▶ AUTO DEMO"}
             </button>
-            <div className="h-5 w-px bg-border mx-1" />
-            {/* Simulation */}
-            {(["fast", "normal", "slow"] as const).map((speed) => (
-              <button
-                key={speed}
-                onClick={() => runAgent(`sim-${speed}`, () => startSimulation(speed))}
-                disabled={agentLoading !== null}
-                className="text-[9px] font-mono px-2 py-1 rounded border border-border bg-surface text-foreground-muted hover:text-foreground hover:border-accent transition-colors disabled:opacity-30"
-              >
-                {agentLoading === `sim-${speed}` ? "..." : `SIM ${speed.toUpperCase()}`}
-              </button>
-            ))}
           </div>
           {/* Status feedback */}
           {opsStatus && (
@@ -255,7 +298,7 @@ export default function DashboardPage() {
       )}
 
       {/* Video feeds */}
-      {streams && streams.streams.length > 0 && (
+      {streams?.streams && streams.streams.length > 0 && (
         <div className="grid grid-cols-3 gap-1.5 mb-3">
           {streams.streams.slice(0, 3).map((stream, i) =>
             stream.embed_url ? (
@@ -444,7 +487,7 @@ export default function DashboardPage() {
           <div className="px-3 py-1.5 border-b border-border">
             <span className="text-[8px] uppercase tracking-[0.2em] font-mono font-bold text-foreground-muted">News Feed</span>
           </div>
-          {news && news.items.length > 0 ? [...new Map(news.items.map((n) => [n.title, n])).values()].slice(0, 6).map((item, i) => {
+          {news?.items && news.items.length > 0 ? [...new Map(news.items.map((n) => [n.title, n])).values()].slice(0, 6).map((item, i) => {
             const isDanger = item.severity === "extreme" || item.severity === "severe";
             return (
               <a key={i} href={item.url} target="_blank" rel="noopener noreferrer" className={`block px-3 py-1.5 border-b border-border last:border-0 hover:bg-hover transition-colors ${isDanger ? "border-l-2 border-l-destructive" : "border-l-2 border-l-transparent"}`}>
