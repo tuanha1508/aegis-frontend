@@ -178,9 +178,17 @@ export default function DashboardPage() {
             <button
               onClick={() => {
                 if (autoPlaying) {
-                  // Stop
+                  // Stop — reset to real data mode
                   if (autoPlayRef.current) clearTimeout(autoPlayRef.current);
                   setAutoPlaying(false);
+                  // Reset scenario to storm_none so backend returns real API data
+                  setScenario("storm_none");
+                  setPhase("pre_storm");
+                  localStorage.removeItem("aegis-api-live");
+                  refetchPhase();
+                  refetchAlerts();
+                  refetchIncidents();
+                  refetchLive();
                   return;
                 }
                 setAutoPlaying(true);
