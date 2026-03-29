@@ -134,13 +134,66 @@ async function getRoute(from: [number, number], to: [number, number]): Promise<[
   return [from, to];
 }
 
-function fakeTraffic(from: [number, number], to: [number, number]): ShelterRoute["traffic"] {
-  const dist = Math.sqrt(Math.pow(to[0] - from[0], 2) + Math.pow(to[1] - from[1], 2));
-  const seed = Math.abs(Math.sin(from[0] * 1000 + to[1] * 2000)) * 10;
-  if (dist < 0.04 && seed < 4) return "gridlock";
-  if (dist < 0.06 && seed < 6) return "heavy";
-  if (seed < 3) return "heavy";
-  if (seed < 6) return "moderate";
+// TomTom Traffic Flow API — real-time traffic data with caching
+const TOMTOM_KEY = process.env.NEXT_PUBLIC_TOMTOM_API_KEY ?? "";
+const trafficCache = new Map<string, { level: ShelterRoute["traffic"]; ts: number }>();
+const TRAFFIC_CACHE_TTL = 5 * 60 * 1000; // 5 min cache
+
+// Load traffic cache from localStorage
+try {
+  const stored = typeof window !== "undefined" ? localStorage.getItem("aegis-traffic-cache") : null;
+  if (stored) {
+    const entries: [string, { level: ShelterRoute["traffic"]; ts: number }][] = JSON.parse(stored);
+    const now = Date.now();
+    entries.forEach(([k, v]) => {
+      if (now - v.ts < TRAFFIC_CACHE_TTL) trafficCache.set(k, v);
+    });
+  }
+} catch {}
+
+function persistTrafficCache() {
+  try {
+    localStorage.setItem("aegis-traffic-cache", JSON.stringify(Array.from(trafficCache.entries())));
+  } catch {}
+}
+
+async function getTrafficLevel(lat: number, lng: number): Promise<ShelterRoute["traffic"]> {
+  const key = `${lat.toFixed(3)},${lng.toFixed(3)}`;
+  const cached = trafficCache.get(key);
+  if (cached && Date.now() - cached.ts < TRAFFIC_CACHE_TTL) return cached.level;
+
+  if (!TOMTOM_KEY) {
+    // Fallback to fake if no API key
+    return fakeFallbackTraffic(lat, lng);
+  }
+
+  try {
+    const url = `https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json?point=${lat},${lng}&key=${TOMTOM_KEY}&unit=MPH`;
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`${res.status}`);
+    const data = await res.json();
+    const current = data?.flowSegmentData?.currentSpeed ?? 0;
+    const freeFlow = data?.flowSegmentData?.freeFlowSpeed ?? 60;
+    const ratio = freeFlow > 0 ? current / freeFlow : 1;
+
+    let level: ShelterRoute["traffic"];
+    if (ratio >= 0.8) level = "clear";
+    else if (ratio >= 0.5) level = "moderate";
+    else if (ratio >= 0.25) level = "heavy";
+    else level = "gridlock";
+
+    trafficCache.set(key, { level, ts: Date.now() });
+    persistTrafficCache();
+    return level;
+  } catch {
+    return fakeFallbackTraffic(lat, lng);
+  }
+}
+
+function fakeFallbackTraffic(lat: number, lng: number): ShelterRoute["traffic"] {
+  const seed = Math.abs(Math.sin(lat * 1000 + lng * 2000)) * 10;
+  if (seed < 2) return "heavy";
+  if (seed < 5) return "moderate";
   return "clear";
 }
 
@@ -194,7 +247,9 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
         }
         if (cancelled) return;
         const path = await getRoute(origin, dest);
-        const traffic = fakeTraffic(origin, dest);
+        // Sample traffic at midpoint of route for real-time data
+        const mid = path[Math.floor(path.length / 2)] ?? dest;
+        const traffic = await getTrafficLevel(mid[0], mid[1]);
         results.push({ path, shelterName: shelter.name, traffic });
         if (!cancelled) setShelterRoutes([...results]);
       }

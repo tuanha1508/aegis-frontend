@@ -286,9 +286,10 @@ interface MapViewProps {
   shelterRoutes?: ShelterRouteData[];
   userLocation?: { lat: number; lng: number } | null;
   onUserLocation?: (loc: { lat: number; lng: number } | null) => void;
+  stormMode?: boolean;
 }
 
-export default function MapView({ risks, resources, incidents, shelterRoutes: externalRoutes, userLocation: externalUserLoc, onUserLocation }: MapViewProps) {
+export default function MapView({ risks, resources, incidents, shelterRoutes: externalRoutes, userLocation: externalUserLoc, onUserLocation, stormMode = false }: MapViewProps) {
   const [query, setQuery] = useState("");
   const [showDropdown, setShowDropdown] = useState(false);
   const [tileStyle, setTileStyle] = useState<TileStyle>("dark");
@@ -316,13 +317,18 @@ export default function MapView({ risks, resources, incidents, shelterRoutes: ex
   };
   const [locating, setLocating] = useState(false);
   const [showStylePicker, setShowStylePicker] = useState(false);
-  const [showHurricaneTrack, setShowHurricaneTrack] = useState(true);
-  const [showHotspots, setShowHotspots] = useState(true);
+  const [showHurricaneTrack, setShowHurricaneTrack] = useState(false);
+  const [showHotspots, setShowHotspots] = useState(stormMode);
   const [showShelterRoutes, setShowShelterRoutes] = useState(true);
   const shelterRoutes = externalRoutes ?? [];
   const [simRunning, setSimRunning] = useState(false);
   const [simSpeed, setSimSpeed] = useState(60); // seconds for full sim
   const [simProgress, setSimProgress] = useState(0);
+  // Only auto-show hotspots in storm mode, never auto-show static track
+  useEffect(() => {
+    setShowHotspots(stormMode);
+  }, [stormMode]);
+
   const renderStaticTrack = showHurricaneTrack && !simRunning;
 
   // Compute incident hotspots — cluster nearby incidents into heat zones
@@ -614,8 +620,8 @@ export default function MapView({ risks, resources, incidents, shelterRoutes: ex
           <p className="text-[8px] font-mono font-bold text-foreground-muted uppercase tracking-widest mb-2">Layers</p>
           <div className="space-y-1">
             {[
-              { key: "track", label: "Storm Track", color: "#a855f6", active: showHurricaneTrack, toggle: () => setShowHurricaneTrack(!showHurricaneTrack) },
-              { key: "hotspots", label: "Hotspots", color: "#ef4444", active: showHotspots, toggle: () => setShowHotspots(!showHotspots) },
+              ...(stormMode || simRunning ? [{ key: "track", label: "Storm Track", color: "#a855f6", active: showHurricaneTrack, toggle: () => setShowHurricaneTrack(!showHurricaneTrack) }] : []),
+              ...(stormMode || simRunning ? [{ key: "hotspots", label: "Hotspots", color: "#ef4444", active: showHotspots, toggle: () => setShowHotspots(!showHotspots) }] : []),
               { key: "routes", label: "Routes", color: "#22c55e", active: showShelterRoutes, toggle: () => setShowShelterRoutes(!showShelterRoutes) },
             ].map((layer) => (
               <button
@@ -629,14 +635,19 @@ export default function MapView({ risks, resources, incidents, shelterRoutes: ex
             ))}
           </div>
 
-          <p className="text-[8px] font-mono font-bold text-foreground-muted uppercase tracking-widest mt-3 mb-1.5">Hotspots</p>
-          <div className="space-y-1">
-            <div className="flex items-center gap-2"><div className="h-2 w-2 rounded-full bg-[#ef4444]" /><span className="text-[9px] text-foreground-muted">Critical (80+)</span></div>
-            <div className="flex items-center gap-2"><div className="h-2 w-2 rounded-full bg-[#f59e0b]" /><span className="text-[9px] text-foreground-muted">Active (50-79)</span></div>
-            <div className="flex items-center gap-2"><div className="h-2 w-2 rounded-full bg-[#3b82f6]" /><span className="text-[9px] text-foreground-muted">Low (&lt;50)</span></div>
-          </div>
+          {/* Storm-related legends — only show when relevant */}
+          {(stormMode || simRunning) && (
+            <>
+              <p className="text-[8px] font-mono font-bold text-foreground-muted uppercase tracking-widest mt-3 mb-1.5">Hotspots</p>
+              <div className="space-y-1">
+                <div className="flex items-center gap-2"><div className="h-2 w-2 rounded-full bg-[#ef4444]" /><span className="text-[9px] text-foreground-muted">Critical (80+)</span></div>
+                <div className="flex items-center gap-2"><div className="h-2 w-2 rounded-full bg-[#f59e0b]" /><span className="text-[9px] text-foreground-muted">Active (50-79)</span></div>
+                <div className="flex items-center gap-2"><div className="h-2 w-2 rounded-full bg-[#3b82f6]" /><span className="text-[9px] text-foreground-muted">Low (&lt;50)</span></div>
+              </div>
+            </>
+          )}
 
-          <p className="text-[8px] font-mono font-bold text-foreground-muted uppercase tracking-widest mt-3 mb-1.5">Traffic</p>
+          <p className="text-[8px] font-mono font-bold text-foreground-muted uppercase tracking-widest mt-3 mb-1.5">Routes</p>
           <div className="space-y-1">
             <div className="flex items-center gap-2"><div className="h-1.5 w-4 rounded-full bg-[#22c55e]" /><span className="text-[9px] text-foreground-muted">Clear</span></div>
             <div className="flex items-center gap-2"><div className="h-1.5 w-4 rounded-full bg-[#f59e0b]" /><span className="text-[9px] text-foreground-muted">Moderate</span></div>
@@ -647,8 +658,12 @@ export default function MapView({ risks, resources, incidents, shelterRoutes: ex
           <p className="text-[8px] font-mono font-bold text-foreground-muted uppercase tracking-widest mt-3 mb-1.5">Markers</p>
           <div className="space-y-1">
             <div className="flex items-center gap-2"><div className="h-2 w-2 rounded bg-[#22c55e]" /><span className="text-[9px] text-foreground-muted">Shelter</span></div>
-            <div className="flex items-center gap-2"><div className="h-2 w-2 rounded-full bg-[#f97316]" /><span className="text-[9px] text-foreground-muted">Incident</span></div>
-            <div className="flex items-center gap-2"><div className="h-2 w-2 rounded-full bg-[#a855f6]" /><span className="text-[9px] text-foreground-muted">Storm Eye</span></div>
+            {(stormMode || simRunning) && (
+              <>
+                <div className="flex items-center gap-2"><div className="h-2 w-2 rounded-full bg-[#f97316]" /><span className="text-[9px] text-foreground-muted">Incident</span></div>
+                <div className="flex items-center gap-2"><div className="h-2 w-2 rounded-full bg-[#a855f6]" /><span className="text-[9px] text-foreground-muted">Storm Eye</span></div>
+              </>
+            )}
           </div>
         </div>
 
@@ -711,13 +726,19 @@ export default function MapView({ risks, resources, incidents, shelterRoutes: ex
         >
           <Icon icon={icons.compass} className="h-4 w-4 text-foreground" />
         </button>
-        {/* Simulation play button */}
+        {/* Simulation play button — only in storm mode or always available for demo */}
         <button
           onClick={() => {
             if (simRunning) {
               setSimRunning(false);
               setSimProgress(0);
+              setShowHurricaneTrack(false);
+              setShowHotspots(false);
+              // Fly back to Tampa
+              mapRef.current?.flyTo([27.95, -82.46], 11, { duration: 1.5 });
             } else {
+              setShowHurricaneTrack(true);
+              setShowHotspots(true);
               setSimProgress(0);
               setSimRunning(true);
             }

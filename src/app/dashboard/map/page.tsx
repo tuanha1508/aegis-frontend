@@ -15,18 +15,22 @@ const MapView = dynamic(() => import("@/components/dashboard/map-view"), {
 });
 
 export default function MapPage() {
-  const { resources, incidents, shelterRoutes, userLocation, setUserLocation } = useDashboard();
+  const { phase, resources, incidents, shelterRoutes, userLocation, setUserLocation } = useDashboard();
   const { data: riskData } = useApi(getRisk);
+
+  // Only show storm data during active storm phase — not pre_storm or post_storm
+  const stormMode = phase?.current_phase === "active_storm";
 
   return (
     <div className="h-[calc(100vh-4rem)] md:h-screen relative">
       <MapView
-        risks={riskData?.neighborhoods ?? []}
+        risks={stormMode ? (riskData?.neighborhoods ?? []) : []}
         resources={resources ?? []}
-        incidents={incidents ?? []}
+        incidents={stormMode ? (incidents ?? []) : []}
         shelterRoutes={shelterRoutes}
         userLocation={userLocation}
         onUserLocation={setUserLocation}
+        stormMode={stormMode}
       />
     </div>
   );
