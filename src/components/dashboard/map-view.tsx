@@ -97,13 +97,7 @@ const MILTON_CONE: [number, number][] = [
 // Storm eye position (landfall)
 const MILTON_EYE: [number, number] = [27.2, -82.8];
 
-// Evacuation zone polygons — simplified, fewer zones
-const EVACUATION_ZONES: { zone: string; center: [number, number]; radius: number; color: string }[] = [
-  { zone: "A", center: [27.916, -82.477], radius: 3500, color: "#ef4444" },  // South Tampa / Davis Islands combined
-  { zone: "A", center: [27.722, -82.431], radius: 2500, color: "#ef4444" },  // Ruskin
-  { zone: "B", center: [27.950, -82.460], radius: 3000, color: "#f59e0b" },  // Central Tampa
-  { zone: "B", center: [27.863, -82.324], radius: 2500, color: "#f59e0b" },  // Riverview
-];
+// Evacuation zones removed — replaced by dynamic incident hotspots
 
 type TrafficLevel = "clear" | "moderate" | "heavy" | "gridlock";
 
@@ -323,13 +317,54 @@ export default function MapView({ risks, resources, incidents, shelterRoutes: ex
   const [locating, setLocating] = useState(false);
   const [showStylePicker, setShowStylePicker] = useState(false);
   const [showHurricaneTrack, setShowHurricaneTrack] = useState(true);
-  const [showEvacZones, setShowEvacZones] = useState(true);
+  const [showHotspots, setShowHotspots] = useState(true);
   const [showShelterRoutes, setShowShelterRoutes] = useState(true);
   const shelterRoutes = externalRoutes ?? [];
   const [simRunning, setSimRunning] = useState(false);
   const [simSpeed, setSimSpeed] = useState(60); // seconds for full sim
   const [simProgress, setSimProgress] = useState(0);
   const renderStaticTrack = showHurricaneTrack && !simRunning;
+
+  // Compute incident hotspots — cluster nearby incidents into heat zones
+  const hotspots = useMemo(() => {
+    const activeIncidents = incidents.filter((i) => !i.resolved && i.lat && i.lng);
+    if (activeIncidents.length === 0) return [];
+
+    // Simple clustering: group incidents within ~0.02 degrees (~2km)
+    const clusters: { lat: number; lng: number; count: number; severity: number; types: string[] }[] = [];
+    const used = new Set<number>();
+
+    for (let i = 0; i < activeIncidents.length; i++) {
+      if (used.has(i)) continue;
+      const inc = activeIncidents[i];
+      const cluster = {
+        lat: inc.lat,
+        lng: inc.lng,
+        count: 1,
+        severity: inc.severity_score ?? 50,
+        types: [inc.incident_type],
+      };
+      used.add(i);
+
+      for (let j = i + 1; j < activeIncidents.length; j++) {
+        if (used.has(j)) continue;
+        const other = activeIncidents[j];
+        const dist = Math.sqrt(Math.pow(other.lat - inc.lat, 2) + Math.pow(other.lng - inc.lng, 2));
+        if (dist < 0.02) {
+          cluster.lat = (cluster.lat * cluster.count + other.lat) / (cluster.count + 1);
+          cluster.lng = (cluster.lng * cluster.count + other.lng) / (cluster.count + 1);
+          cluster.count++;
+          cluster.severity = Math.max(cluster.severity, other.severity_score ?? 50);
+          if (!cluster.types.includes(other.incident_type)) {
+            cluster.types.push(other.incident_type);
+          }
+          used.add(j);
+        }
+      }
+      clusters.push(cluster);
+    }
+    return clusters;
+  }, [incidents]);
   const inputRef = useRef<HTMLInputElement>(null);
   const mapRef = useRef<L.Map | null>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -464,10 +499,12 @@ export default function MapView({ risks, resources, incidents, shelterRoutes: ex
       {/* Search bar */}
       <div className="absolute top-4 left-4 z-[1000] w-80">
         <div className="relative">
-          <Icon
-            icon={icons.search}
-            className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-foreground-secondary"
-          />
+          <svg
+            style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", width: 16, height: 16, zIndex: 1 }}
+            xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="rgb(155,155,155)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
+          >
+            <circle cx="11" cy="11" r="8" /><path d="m21 21-4.3-4.3" />
+          </svg>
           <input
             ref={inputRef}
             type="text"
@@ -478,7 +515,7 @@ export default function MapView({ risks, resources, incidents, shelterRoutes: ex
             }}
             onFocus={() => setShowDropdown(true)}
             placeholder="Search address, shelter, area..."
-            className="w-full pl-9 pr-8 py-2.5 bg-surface/95 backdrop-blur-sm rounded-xl border border-border text-sm text-foreground placeholder:text-foreground-secondary/50 outline-none focus:border-foreground/30 shadow-sm"
+            className="w-full pl-10 pr-8 py-2.5 bg-surface/95 backdrop-blur-sm rounded-xl border border-border text-sm text-foreground placeholder:text-foreground-muted outline-none focus:border-foreground/30 shadow-sm"
           />
           {addressLoading && (
             <Icon
@@ -573,13 +610,13 @@ export default function MapView({ risks, resources, incidents, shelterRoutes: ex
       {/* Right controls — zoom, fullscreen, map style */}
       <div className="absolute top-4 right-4 z-[1000] flex flex-col gap-2 items-end">
         {/* Legend + Layer toggles */}
-        <div className="bg-surface/95 backdrop-blur-sm rounded-xl border border-border p-3 shadow-sm w-48">
-          <p className="text-[9px] font-mono font-bold text-foreground-muted uppercase tracking-widest mb-2">Layers</p>
-          <div className="space-y-1.5">
+        <div className="bg-surface/95 backdrop-blur-sm rounded-xl border border-border p-3 shadow-sm w-44">
+          <p className="text-[8px] font-mono font-bold text-foreground-muted uppercase tracking-widest mb-2">Layers</p>
+          <div className="space-y-1">
             {[
-              { key: "track", label: "Hurricane Track", color: "#a855f6", active: showHurricaneTrack, toggle: () => setShowHurricaneTrack(!showHurricaneTrack) },
-              { key: "evac", label: "Evacuation Zones", color: "#ef4444", active: showEvacZones, toggle: () => setShowEvacZones(!showEvacZones) },
-              { key: "routes", label: "Shelter Routes", color: "#f59e0b", active: showShelterRoutes, toggle: () => setShowShelterRoutes(!showShelterRoutes) },
+              { key: "track", label: "Storm Track", color: "#a855f6", active: showHurricaneTrack, toggle: () => setShowHurricaneTrack(!showHurricaneTrack) },
+              { key: "hotspots", label: "Hotspots", color: "#ef4444", active: showHotspots, toggle: () => setShowHotspots(!showHotspots) },
+              { key: "routes", label: "Routes", color: "#22c55e", active: showShelterRoutes, toggle: () => setShowShelterRoutes(!showShelterRoutes) },
             ].map((layer) => (
               <button
                 key={layer.key}
@@ -591,22 +628,27 @@ export default function MapView({ risks, resources, incidents, shelterRoutes: ex
               </button>
             ))}
           </div>
-          <div className="mt-2 pt-2 border-t border-border/60 space-y-1.5">
-            {[
-              { color: "#ef4444", label: "Zone A — Evacuate" },
-              { color: "#f59e0b", label: "Zone B — Shelter" },
-              { color: "#22c55e", label: "Clear Route / Shelter" },
-              { color: "#f59e0b", label: "Moderate Traffic" },
-              { color: "#ef4444", label: "Heavy Traffic" },
-              { color: "#991b1b", label: "Gridlock" },
-              { color: "#f97316", label: "Incident" },
-              { color: "#a855f6", label: "Storm Path / Cone" },
-            ].map((item) => (
-              <div key={item.label} className="flex items-center gap-2">
-                <div className="h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: item.color }} />
-                <span className="text-[9px] text-foreground-muted">{item.label}</span>
-              </div>
-            ))}
+
+          <p className="text-[8px] font-mono font-bold text-foreground-muted uppercase tracking-widest mt-3 mb-1.5">Hotspots</p>
+          <div className="space-y-1">
+            <div className="flex items-center gap-2"><div className="h-2 w-2 rounded-full bg-[#ef4444]" /><span className="text-[9px] text-foreground-muted">Critical (80+)</span></div>
+            <div className="flex items-center gap-2"><div className="h-2 w-2 rounded-full bg-[#f59e0b]" /><span className="text-[9px] text-foreground-muted">Active (50-79)</span></div>
+            <div className="flex items-center gap-2"><div className="h-2 w-2 rounded-full bg-[#3b82f6]" /><span className="text-[9px] text-foreground-muted">Low (&lt;50)</span></div>
+          </div>
+
+          <p className="text-[8px] font-mono font-bold text-foreground-muted uppercase tracking-widest mt-3 mb-1.5">Traffic</p>
+          <div className="space-y-1">
+            <div className="flex items-center gap-2"><div className="h-1.5 w-4 rounded-full bg-[#22c55e]" /><span className="text-[9px] text-foreground-muted">Clear</span></div>
+            <div className="flex items-center gap-2"><div className="h-1.5 w-4 rounded-full bg-[#f59e0b]" /><span className="text-[9px] text-foreground-muted">Moderate</span></div>
+            <div className="flex items-center gap-2"><div className="h-1.5 w-4 rounded-full bg-[#ef4444]" /><span className="text-[9px] text-foreground-muted">Heavy</span></div>
+            <div className="flex items-center gap-2"><div className="h-1.5 w-4 rounded-full bg-[#991b1b]" /><span className="text-[9px] text-foreground-muted">Gridlock</span></div>
+          </div>
+
+          <p className="text-[8px] font-mono font-bold text-foreground-muted uppercase tracking-widest mt-3 mb-1.5">Markers</p>
+          <div className="space-y-1">
+            <div className="flex items-center gap-2"><div className="h-2 w-2 rounded bg-[#22c55e]" /><span className="text-[9px] text-foreground-muted">Shelter</span></div>
+            <div className="flex items-center gap-2"><div className="h-2 w-2 rounded-full bg-[#f97316]" /><span className="text-[9px] text-foreground-muted">Incident</span></div>
+            <div className="flex items-center gap-2"><div className="h-2 w-2 rounded-full bg-[#a855f6]" /><span className="text-[9px] text-foreground-muted">Storm Eye</span></div>
           </div>
         </div>
 
@@ -668,13 +710,6 @@ export default function MapView({ risks, resources, incidents, shelterRoutes: ex
           title="Reset to Tampa Bay"
         >
           <Icon icon={icons.compass} className="h-4 w-4 text-foreground" />
-        </button>
-        <button
-          onClick={handleFindShelter}
-          className="h-10 w-10 bg-emerald-600/90 backdrop-blur-sm rounded-xl shadow-sm flex items-center justify-center hover:bg-emerald-500 transition-colors"
-          title="Find nearest shelter"
-        >
-          <Icon icon={icons.firstAid} className="h-4 w-4 text-white" />
         </button>
         {/* Simulation play button */}
         <button
@@ -766,30 +801,27 @@ export default function MapView({ risks, resources, incidents, shelterRoutes: ex
           </>
         )}
 
-        {/* Risk zones */}
+        {/* Neighborhood risk markers — small dots with info */}
         {risks.map((zone) => (
-          <CircleMarker
+          <Marker
             key={zone.neighborhood}
-            center={[zone.lat, zone.lng]}
-            radius={zone.flood_risk * 30 + 10}
-            pathOptions={{
-              color: riskColor(zone.flood_risk),
-              fillColor: riskColor(zone.flood_risk),
-              fillOpacity: 0.2,
-              weight: 1.5,
-            }}
+            position={[zone.lat, zone.lng]}
+            icon={L.divIcon({
+              className: "",
+              iconSize: [8, 8],
+              iconAnchor: [4, 4],
+              html: `<div style="width:8px;height:8px;border-radius:50%;background:${riskColor(zone.flood_risk)};opacity:0.6;border:1px solid ${riskColor(zone.flood_risk)};"></div>`,
+            })}
           >
             <Popup>
               <div className="text-xs">
                 <p className="font-semibold">{zone.neighborhood}</p>
                 <p>Flood risk: {Math.round(zone.flood_risk * 100)}%</p>
                 <p>Storm surge: {zone.storm_surge_ft} ft</p>
-                <p>
-                  Recommendation: {recommendationLabel(zone.recommendation)}
-                </p>
+                <p>Recommendation: {recommendationLabel(zone.recommendation)}</p>
               </div>
             </Popup>
-          </CircleMarker>
+          </Marker>
         ))}
 
         {/* (Shelters rendered in new layers section with improved markers) */}
@@ -887,28 +919,38 @@ export default function MapView({ risks, resources, incidents, shelterRoutes: ex
           </>
         )}
 
-        {/* Evacuation zones */}
-        {showEvacZones && EVACUATION_ZONES.map((zone, i) => (
-          <Circle
-            key={`evac-${i}`}
-            center={zone.center}
-            radius={zone.radius}
-            pathOptions={{
-              color: zone.color,
-              fillColor: zone.color,
-              fillOpacity: 0.08,
-              weight: 1,
-              opacity: 0.5,
-              dashArray: zone.zone === "B" ? "6 4" : undefined,
-            }}
-          >
-            <Popup>
-              <div className="text-xs">
-                <p className="font-semibold">Zone {zone.zone} — {zone.zone === "A" ? "Mandatory Evacuation" : "Evacuate if Advised"}</p>
-              </div>
-            </Popup>
-          </Circle>
-        ))}
+        {/* Incident hotspots — dynamic zones based on report density */}
+        {showHotspots && hotspots.map((spot, i) => {
+          const isCritical = spot.severity >= 80;
+          const color = isCritical ? "#ef4444" : spot.severity >= 50 ? "#f59e0b" : "#3b82f6";
+          // Radius scales with incident count (min 500m, max 3km)
+          const radius = Math.min(500 + spot.count * 600, 3000);
+          return (
+            <Circle
+              key={`hotspot-${i}`}
+              center={[spot.lat, spot.lng]}
+              radius={radius}
+              pathOptions={{
+                color,
+                fillColor: color,
+                fillOpacity: 0.10 + spot.count * 0.03,
+                weight: 1.5,
+                opacity: 0.5,
+              }}
+            >
+              <Popup>
+                <div className="text-xs">
+                  <p className="font-bold" style={{ color }}>
+                    {isCritical ? "CRITICAL ZONE" : "ACTIVE ZONE"} — {spot.count} report{spot.count > 1 ? "s" : ""}
+                  </p>
+                  <p>Types: {spot.types.map((t) => t.replace(/_/g, " ")).join(", ")}</p>
+                  <p>Max severity: {spot.severity}/100</p>
+                  {isCritical && <p className="font-bold mt-1" style={{ color: "#ef4444" }}>⚠ Immediate assistance needed</p>}
+                </div>
+              </Popup>
+            </Circle>
+          );
+        })}
 
         {/* Routes to shelters — color escalates during simulation */}
         {showShelterRoutes && shelterRoutes.map((route, i) => {
