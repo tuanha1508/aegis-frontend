@@ -139,21 +139,6 @@ export default function SMSPage() {
 
   return (
     <div className="h-[calc(100vh-4rem)] md:h-screen flex flex-col max-w-2xl mx-auto">
-      {/* Header */}
-      <div className="px-6 py-4 border-b border-border flex items-center gap-3">
-        <div className="h-9 w-9 rounded-xl bg-foreground flex items-center justify-center">
-          <Icon icon={icons.chatText} className="h-4.5 w-4.5 text-foreground-inverse" />
-        </div>
-        <div>
-          <h1 className="text-base font-semibold text-foreground">
-            SMS Simulator
-          </h1>
-          <p className="text-[10px] text-foreground-secondary">
-            Report emergencies via text — powered by AI
-          </p>
-        </div>
-      </div>
-
       {/* Messages */}
       <div ref={scrollRef} className="flex-1 overflow-y-auto px-6 py-6">
         {messages.length === 0 && (
@@ -315,7 +300,7 @@ export default function SMSPage() {
       {/* Input */}
       <form
         onSubmit={handleSubmit}
-        className="px-6 py-4 border-t border-border flex gap-2"
+        className="px-6 py-4 border-t border-border flex gap-4"
       >
         <input
           ref={inputRef}

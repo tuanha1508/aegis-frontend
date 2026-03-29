@@ -1,8 +1,9 @@
 "use client";
 
 import dynamic from "next/dynamic";
+import { useDashboard } from "@/lib/dashboard-context";
 import { useApi } from "@/lib/use-api";
-import { getRisk, getResources, getIncidents } from "@/lib/api";
+import { getRisk } from "@/lib/api";
 
 const MapView = dynamic(() => import("@/components/dashboard/map-view"), {
   ssr: false,
@@ -14,9 +15,8 @@ const MapView = dynamic(() => import("@/components/dashboard/map-view"), {
 });
 
 export default function MapPage() {
+  const { resources, incidents, shelterRoutes, userLocation, setUserLocation } = useDashboard();
   const { data: riskData } = useApi(getRisk);
-  const { data: resources } = useApi(getResources);
-  const { data: incidents } = useApi(getIncidents);
 
   return (
     <div className="h-[calc(100vh-4rem)] md:h-screen relative">
@@ -24,6 +24,9 @@ export default function MapPage() {
         risks={riskData?.neighborhoods ?? []}
         resources={resources ?? []}
         incidents={incidents ?? []}
+        shelterRoutes={shelterRoutes}
+        userLocation={userLocation}
+        onUserLocation={setUserLocation}
       />
     </div>
   );

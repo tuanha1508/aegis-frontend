@@ -111,16 +111,96 @@ export const getRecoveryBriefs = () =>
 export const getRecoveryBrief = (neighborhood: string) =>
   get<Record<string, unknown>>(`/recovery/briefs/${neighborhood}`);
 
-// Live Data
-export const getLiveWaterLevels = () =>
-  get<WaterLevelsResponse>("/live/water-levels");
+// Live Data — single combined endpoint
+export interface LiveAllResponse {
+  weather: CurrentWeather | null;
+  water_levels: WaterLevelsResponse | null;
+  tides: TideData | null;
+  alerts: WeatherAlertsResponse | null;
+  news: NewsFeedResponse | null;
+  forecast: ForecastResponse | null;
+  streams: LiveStreamsResponse | null;
+}
+export const getLiveAll = () => get<LiveAllResponse>("/live/all");
+export const getLiveWaterLevels = () => get<WaterLevelsResponse>("/live/water-levels");
 export const getLiveTides = () => get<TideData>("/live/tides");
 export const getLiveWeather = () => get<CurrentWeather>("/live/weather");
 export const getLiveForecast = () => get<ForecastResponse>("/live/forecast");
-export const getLiveAlerts = () =>
-  get<WeatherAlertsResponse>("/live/alerts");
+export const getLiveAlerts = () => get<WeatherAlertsResponse>("/live/alerts");
 export const getLiveNews = () => get<NewsFeedResponse>("/live/news");
 export const getLiveStreams = () => get<LiveStreamsResponse>("/live/streams");
+
+// Agent triggers
+export const triggerOrchestrate = (phase?: string) =>
+  post("/phase/orchestrate", phase ? { phase } : undefined);
+export const triggerProcessReports = () => post("/reports/process");
+export const triggerRankIncidents = () => post("/incidents/rank");
+export const triggerRecoveryBriefs = () => post("/recovery/generate");
+
+// Orchestration / Simulation
+export const getOrchestrationStatus = () =>
+  get<Record<string, unknown>>("/orchestration/status");
+export const setScenario = (step: string) =>
+  post("/orchestration/scenario", { step });
+export const orchestrationTick = () => post("/orchestration/tick");
+export const startScheduler = () => post("/orchestration/scheduler/start");
+export const stopScheduler = () => post("/orchestration/scheduler/stop");
+
+// Commander — AI situation awareness
+export const askCommander = (question: string) =>
+  post<Record<string, unknown>>("/commander/ask", { question });
+
+// Simulation — hurricane lifecycle replay
+export const startSimulation = (speed?: "fast" | "normal" | "slow") =>
+  post<Record<string, unknown>>("/simulation/start", speed ? { speed } : undefined);
+export const getSimulationStatus = () =>
+  get<{ phase: string; scenario: string; stats: { reports: number; incidents: number; alerts: number; matches: number } }>("/simulation/status");
+
+// Incident verification
+export const verifyIncidents = () => post("/incidents/verify");
+
+// Resource planning
+export const planResources = (lat: number, lng: number, needs: string[], maxMiles?: number) =>
+  post<{ origin: { lat: number; lng: number }; recommendations: Record<string, unknown>[]; narrative: string | null }>(
+    "/resources/plan",
+    { lat, lng, needs, max_miles: maxMiles ?? 10 }
+  );
+export const syncResources = () => post("/resources/sync");
+
+// Assignments
+export interface Assignment {
+  id: number;
+  incident_id: number;
+  resource_id: number;
+  status: string;
+  notes: string | null;
+  created_at: string | null;
+  updated_at: string | null;
+}
+export const getAssignments = (incidentId?: number) =>
+  get<Assignment[]>(`/assignments${incidentId ? `?incident_id=${incidentId}` : ""}`);
+export const getAssignment = (id: number) =>
+  get<Assignment>(`/assignments/${id}`);
+export const createAssignment = (data: { incident_id: number; resource_id: number; notes?: string }) =>
+  post<Assignment>("/assignments", data);
+export const updateAssignment = (id: number, data: { status?: string; notes?: string }) =>
+  patch<Assignment>(`/assignments/${id}`, data);
+
+// Audit
+export const getAuditLog = (limit?: number, runId?: string) => {
+  const params = new URLSearchParams();
+  if (limit) params.set("limit", String(limit));
+  if (runId) params.set("run_id", runId);
+  const qs = params.toString();
+  return get<Record<string, unknown>[]>(`/audit-log${qs ? `?${qs}` : ""}`);
+};
+
+// SMS (wrapper for consistency)
+export const sendSmsChat = (message: string, phone?: string) =>
+  post<{ status: string; reply: string; report: Record<string, unknown>; report_id: number }>(
+    "/sms/chat",
+    { message, phone }
+  );
 
 // Match review
 async function patch<T>(path: string, body: unknown): Promise<T> {

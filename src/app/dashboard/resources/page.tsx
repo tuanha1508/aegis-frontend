@@ -2,8 +2,7 @@
 
 import { Icon } from "@iconify/react";
 import { icons } from "@/lib/icons";
-import { useApi } from "@/lib/use-api";
-import { getResources } from "@/lib/api";
+import { useDashboard } from "@/lib/dashboard-context";
 
 const amenityIconMap: Record<string, string> = {
   wifi: icons.wifi,
@@ -14,7 +13,8 @@ const amenityIconMap: Record<string, string> = {
 };
 
 export default function ResourcesPage() {
-  const { data: resources, loading } = useApi(getResources);
+  const { resources } = useDashboard();
+  const loading = !resources;
 
   const shelters = resources?.filter((r) => r.type === "shelter") ?? [];
   const open = shelters.filter((s) => s.status === "open");

@@ -1,15 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import {
-  getLiveWeather,
-  getLiveWaterLevels,
-  getLiveTides,
-  getLiveAlerts,
-  getLiveNews,
-  getLiveStreams,
-  getLiveForecast,
-} from "./api";
+import { getLiveAll } from "./api";
 import type {
   CurrentWeather,
   WaterLevelsResponse,
@@ -44,29 +36,23 @@ export function useLiveData(intervalMs = 60_000) {
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
 
   const fetchAll = useCallback(async () => {
-    const [weather, waterLevels, tides, alerts, news, streams, forecast] =
-      await Promise.allSettled([
-        getLiveWeather(),
-        getLiveWaterLevels(),
-        getLiveTides(),
-        getLiveAlerts(),
-        getLiveNews(),
-        getLiveStreams(),
-        getLiveForecast(),
-      ]);
-
-    setData({
-      weather: weather.status === "fulfilled" ? weather.value : null,
-      waterLevels:
-        waterLevels.status === "fulfilled" ? waterLevels.value : null,
-      tides: tides.status === "fulfilled" ? tides.value : null,
-      alerts: alerts.status === "fulfilled" ? alerts.value : null,
-      news: news.status === "fulfilled" ? news.value : null,
-      streams: streams.status === "fulfilled" ? streams.value : null,
-      forecast: forecast.status === "fulfilled" ? forecast.value : null,
-    });
-    setLastUpdated(new Date());
-    setLoading(false);
+    try {
+      const res = await getLiveAll();
+      setData({
+        weather: res.weather ?? null,
+        waterLevels: res.water_levels ?? null,
+        tides: res.tides ?? null,
+        alerts: res.alerts ?? null,
+        news: res.news ?? null,
+        streams: res.streams ?? null,
+        forecast: res.forecast ?? null,
+      });
+      setLastUpdated(new Date());
+    } catch {
+      // Keep previous data on error
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
   useEffect(() => {

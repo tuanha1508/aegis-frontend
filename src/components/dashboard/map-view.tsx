@@ -16,6 +16,7 @@ import {
 import L from "leaflet";
 import { Icon } from "@iconify/react";
 import { icons } from "@/lib/icons";
+import { MapSimulation } from "./map-simulation";
 import type {
   RiskAssessment,
   ResourceResponse,
@@ -126,22 +127,80 @@ function fakeTraffic(from: [number, number], to: [number, number]): TrafficLevel
   return "clear";
 }
 
-// OSRM routing — returns road-following coordinates
+// Decode Google polyline encoding (used by Valhalla)
+function decodePolyline(encoded: string): [number, number][] {
+  const points: [number, number][] = [];
+  let index = 0;
+  let lat = 0;
+  let lng = 0;
+  while (index < encoded.length) {
+    let b: number;
+    let shift = 0;
+    let result = 0;
+    do {
+      b = encoded.charCodeAt(index++) - 63;
+      result |= (b & 0x1f) << shift;
+      shift += 5;
+    } while (b >= 0x20);
+    lat += result & 1 ? ~(result >> 1) : result >> 1;
+    shift = 0;
+    result = 0;
+    do {
+      b = encoded.charCodeAt(index++) - 63;
+      result |= (b & 0x1f) << shift;
+      shift += 5;
+    } while (b >= 0x20);
+    lng += result & 1 ? ~(result >> 1) : result >> 1;
+    points.push([lat / 1e6, lng / 1e6]);
+  }
+  return points;
+}
+
+// Valhalla routing (OSRM is down) with cache
+const routeCache = new Map<string, [number, number][]>();
+
 async function getRoute(
   from: [number, number],
   to: [number, number]
 ): Promise<[number, number][]> {
-  try {
-    const url = `https://router.project-osrm.org/route/v1/driving/${from[1]},${from[0]};${to[1]},${to[0]}?overview=full&geometries=geojson`;
-    const res = await fetch(url);
-    const data = await res.json();
-    if (data.routes?.[0]?.geometry?.coordinates) {
-      return data.routes[0].geometry.coordinates.map(
-        (c: [number, number]) => [c[1], c[0]] as [number, number]
-      );
+  const key = `${from[0].toFixed(4)},${from[1].toFixed(4)}-${to[0].toFixed(4)},${to[1].toFixed(4)}`;
+  if (routeCache.has(key)) return routeCache.get(key)!;
+  // Try multiple routing providers (OSRM first — has CORS support from browsers)
+  const providers = [
+    // OSRM (1 req/sec limit, but fine for 3 routes)
+    async () => {
+      const url = `https://router.project-osrm.org/route/v1/driving/${from[1]},${from[0]};${to[1]},${to[0]}?overview=full&geometries=geojson`;
+      const res = await fetch(url);
+      if (!res.ok) throw new Error(`${res.status}`);
+      const data = await res.json();
+      if (!data.routes?.[0]?.geometry?.coordinates) throw new Error("no route");
+      return data.routes[0].geometry.coordinates.map((c: [number, number]) => [c[1], c[0]] as [number, number]);
+    },
+    // Valhalla backup (may have CORS issues from localhost)
+    async () => {
+      const req = { locations: [{ lat: from[0], lon: from[1] }, { lat: to[0], lon: to[1] }], costing: "auto" };
+      const url = `https://valhalla1.openstreetmap.de/route?json=${encodeURIComponent(JSON.stringify(req))}`;
+      const res = await fetch(url);
+      if (!res.ok) throw new Error(`${res.status}`);
+      const data = await res.json();
+      const shape = data?.trip?.legs?.[0]?.shape;
+      if (!shape) throw new Error("no shape");
+      return decodePolyline(shape);
+    },
+  ];
+
+  for (const provider of providers) {
+    try {
+      const path = await provider();
+      if (path.length > 2) {
+        routeCache.set(key, path);
+        return path;
+      }
+    } catch {
+      continue;
     }
-  } catch {}
-  // Fallback: straight line
+  }
+  // All providers failed — straight line fallback
   return [from, to];
 }
 
@@ -220,13 +279,22 @@ function MapCapture({ onMap }: { onMap: (map: L.Map) => void }) {
   return null;
 }
 
+interface ShelterRouteData {
+  path: [number, number][];
+  shelterName: string;
+  traffic: "clear" | "moderate" | "heavy" | "gridlock";
+}
+
 interface MapViewProps {
   risks: RiskAssessment[];
   resources: ResourceResponse[];
   incidents: IncidentResponse[];
+  shelterRoutes?: ShelterRouteData[];
+  userLocation?: { lat: number; lng: number } | null;
+  onUserLocation?: (loc: { lat: number; lng: number } | null) => void;
 }
 
-export default function MapView({ risks, resources, incidents }: MapViewProps) {
+export default function MapView({ risks, resources, incidents, shelterRoutes: externalRoutes, userLocation: externalUserLoc, onUserLocation }: MapViewProps) {
   const [query, setQuery] = useState("");
   const [showDropdown, setShowDropdown] = useState(false);
   const [tileStyle, setTileStyle] = useState<TileStyle>("dark");
@@ -240,17 +308,28 @@ export default function MapView({ risks, resources, incidents }: MapViewProps) {
     lng: number;
     label?: string;
   } | null>(null);
-  const [userLocation, setUserLocation] = useState<{
+  const [internalUserLoc, setInternalUserLoc] = useState<{
     lat: number;
     lng: number;
     accuracy: number;
   } | null>(null);
+  const userLocation = externalUserLoc
+    ? { ...externalUserLoc, accuracy: 50 }
+    : internalUserLoc;
+  const setUserLocation = (loc: { lat: number; lng: number; accuracy: number }) => {
+    setInternalUserLoc(loc);
+    onUserLocation?.({ lat: loc.lat, lng: loc.lng });
+  };
   const [locating, setLocating] = useState(false);
   const [showStylePicker, setShowStylePicker] = useState(false);
   const [showHurricaneTrack, setShowHurricaneTrack] = useState(true);
   const [showEvacZones, setShowEvacZones] = useState(true);
   const [showShelterRoutes, setShowShelterRoutes] = useState(true);
-  const [shelterRoute, setShelterRoute] = useState<[number, number][] | null>(null);
+  const shelterRoutes = externalRoutes ?? [];
+  const [simRunning, setSimRunning] = useState(false);
+  const [simSpeed, setSimSpeed] = useState(60); // seconds for full sim
+  const [simProgress, setSimProgress] = useState(0);
+  const renderStaticTrack = showHurricaneTrack && !simRunning;
   const inputRef = useRef<HTMLInputElement>(null);
   const mapRef = useRef<L.Map | null>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -329,21 +408,7 @@ export default function MapView({ risks, resources, incidents }: MapViewProps) {
     inputRef.current?.blur();
   };
 
-  // Auto-locate on first load — show marker but don't pan away from Tampa
-  useEffect(() => {
-    if (!navigator.geolocation) return;
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        setUserLocation({
-          lat: pos.coords.latitude,
-          lng: pos.coords.longitude,
-          accuracy: pos.coords.accuracy,
-        });
-      },
-      () => {},
-      { enableHighAccuracy: true, timeout: 10000 }
-    );
-  }, []);
+  // Auto-locate handled by dashboard context
 
   const handleLocateMe = () => {
     if (!navigator.geolocation) return;
@@ -364,65 +429,24 @@ export default function MapView({ risks, resources, incidents }: MapViewProps) {
     );
   };
 
-  // Compute routed paths from each zone to nearest shelter
-  const [shelterRoutes, setShelterRoutes] = useState<
-    { path: [number, number][]; shelterName: string; zone: string; traffic: TrafficLevel }[]
-  >([]);
-
-  useEffect(() => {
-    const openShelters = resources.filter((r) => r.type === "shelter" && r.status === "open");
-    if (openShelters.length === 0) return;
-
-    let cancelled = false;
-    const computeRoutes = async () => {
-      const allRoutes: { path: [number, number][]; shelterName: string; zone: string; traffic: TrafficLevel }[] = [];
-      for (const zone of EVACUATION_ZONES) {
-        for (let i = 0; i < openShelters.length; i += 4) {
-          if (cancelled) return;
-          const batch = openShelters.slice(i, i + 4);
-          const results = await Promise.all(
-            batch.map(async (shelter) => {
-              const dest: [number, number] = [shelter.lat, shelter.lng];
-              const path = await getRoute(zone.center, dest);
-              const traffic = fakeTraffic(zone.center, dest);
-              return { path, shelterName: shelter.name, zone: zone.zone, traffic };
-            })
-          );
-          allRoutes.push(...results);
-          if (!cancelled) setShelterRoutes([...allRoutes]);
-        }
-      }
-    };
-    computeRoutes();
-    return () => { cancelled = true; };
-  }, [resources]);
+  // Routes come from dashboard context — no internal computation needed
 
   const handleResetView = () => {
     setFlyTarget({ lat: TAMPA_CENTER[0], lng: TAMPA_CENTER[1], zoom: 12 });
   };
 
-  const handleFindShelter = async () => {
+  const handleFindShelter = () => {
     if (!userLocation) {
       handleLocateMe();
       return;
     }
-    const shelters = resources.filter((r) => r.type === "shelter" && r.status === "open");
-    if (shelters.length === 0) return;
-    let nearest = shelters[0];
-    let minDist = Infinity;
-    for (const s of shelters) {
-      const d = Math.pow(s.lat - userLocation.lat, 2) + Math.pow(s.lng - userLocation.lng, 2);
-      if (d < minDist) { minDist = d; nearest = s; }
-    }
-    const path = await getRoute(
-      [userLocation.lat, userLocation.lng],
-      [nearest.lat, nearest.lng]
-    );
-    setShelterRoute(path);
-    // Fit map to show full route
-    if (mapRef.current && path.length > 1) {
-      const bounds = L.latLngBounds(path.map((p) => L.latLng(p[0], p[1])));
-      mapRef.current.fitBounds(bounds, { padding: [50, 50] });
+    // Routes already computed — just fit map to show them
+    if (shelterRoutes.length > 0 && mapRef.current) {
+      const allPoints = shelterRoutes.flatMap((r) => r.path);
+      if (allPoints.length > 1) {
+        const bounds = L.latLngBounds(allPoints.map((p) => L.latLng(p[0], p[1])));
+        mapRef.current.fitBounds(bounds, { padding: [50, 50] });
+      }
     }
   };
 
@@ -652,6 +676,29 @@ export default function MapView({ risks, resources, incidents }: MapViewProps) {
         >
           <Icon icon={icons.firstAid} className="h-4 w-4 text-white" />
         </button>
+        {/* Simulation play button */}
+        <button
+          onClick={() => {
+            if (simRunning) {
+              setSimRunning(false);
+              setSimProgress(0);
+            } else {
+              setSimProgress(0);
+              setSimRunning(true);
+            }
+          }}
+          className={`h-10 w-10 backdrop-blur-sm rounded-xl shadow-sm flex items-center justify-center transition-colors ${
+            simRunning
+              ? "bg-destructive/90 hover:bg-destructive"
+              : "bg-accent/90 hover:bg-accent"
+          }`}
+          title={simRunning ? "Stop simulation" : "Play Hurricane Milton simulation"}
+        >
+          <Icon
+            icon={simRunning ? "ph:stop-bold" : "ph:play-bold"}
+            className="h-4 w-4 text-white"
+          />
+        </button>
       </div>
 
       <MapContainer
@@ -779,7 +826,7 @@ export default function MapView({ risks, resources, incidents }: MapViewProps) {
         {/* === NEW LAYERS === */}
 
         {/* Hurricane Milton — cone of uncertainty + track + eye */}
-        {showHurricaneTrack && (
+        {renderStaticTrack && (
           <>
             {/* Cone of uncertainty — translucent polygon */}
             <Polygon
@@ -863,40 +910,44 @@ export default function MapView({ risks, resources, incidents }: MapViewProps) {
           </Circle>
         ))}
 
-        {/* Routed paths from evacuation zones to shelters — colored by traffic */}
-        {showShelterRoutes && shelterRoutes.map((route, i) => (
-          <Polyline
-            key={`shelter-route-${i}`}
-            positions={route.path}
-            pathOptions={{
-              color: trafficColor[route.traffic],
-              weight: route.traffic === "gridlock" ? 4 : 3,
-              opacity: route.traffic === "clear" ? 0.4 : 0.7,
-              lineCap: "round",
-              lineJoin: "round",
-            }}
-          >
-            <Popup>
-              <div className="text-xs">
-                <p className="font-semibold">Zone {route.zone} → {route.shelterName}</p>
-                <p>Traffic: <span style={{ color: trafficColor[route.traffic], fontWeight: 600 }}>{route.traffic.toUpperCase()}</span></p>
-              </div>
-            </Popup>
-          </Polyline>
-        ))}
-
-        {/* Route to nearest shelter */}
-        {shelterRoute && (
-          <Polyline
-            positions={shelterRoute}
-            pathOptions={{
-              color: "#22c55e",
-              weight: 4,
-              opacity: 0.8,
-              dashArray: "10 8",
-            }}
-          />
-        )}
+        {/* Routes to shelters — color escalates during simulation */}
+        {showShelterRoutes && shelterRoutes.map((route, i) => {
+          // During simulation, traffic worsens as storm approaches
+          let effectiveTraffic = route.traffic;
+          if (simRunning && simProgress > 0) {
+            if (simProgress > 0.6) {
+              // Landfall — almost everything gridlocked
+              effectiveTraffic = route.traffic === "clear" ? "heavy" : "gridlock";
+            } else if (simProgress > 0.45) {
+              // Approaching — traffic worsening
+              effectiveTraffic = route.traffic === "clear" ? "moderate" : route.traffic === "moderate" ? "heavy" : "gridlock";
+            } else if (simProgress > 0.3) {
+              // Evacuation starting — clear routes become moderate
+              effectiveTraffic = route.traffic === "clear" ? "moderate" : "heavy";
+            }
+          }
+          return (
+            <Polyline
+              key={`shelter-route-${i}`}
+              positions={route.path}
+              pathOptions={{
+                color: trafficColor[effectiveTraffic],
+                weight: effectiveTraffic === "gridlock" ? 5 : 4,
+                opacity: 0.8,
+                lineCap: "round",
+                lineJoin: "round",
+              }}
+            >
+              <Popup>
+                <div className="text-xs">
+                  <p className="font-semibold">→ {route.shelterName}</p>
+                  <p>Traffic: <span style={{ color: trafficColor[effectiveTraffic], fontWeight: 600 }}>{effectiveTraffic.toUpperCase()}</span></p>
+                  {simRunning && simProgress > 0.45 && <p className="text-red-400 mt-1">⚠ Evacuate now</p>}
+                </div>
+              </Popup>
+            </Polyline>
+          );
+        })}
 
         {/* Shelter markers — improved with labels */}
         {resources
@@ -932,6 +983,9 @@ export default function MapView({ risks, resources, incidents }: MapViewProps) {
               </Marker>
             );
           })}
+
+        {/* Hurricane simulation overlay */}
+        <MapSimulation running={simRunning} speed={simSpeed} onProgress={setSimProgress} />
 
         <MapCapture onMap={(m) => { mapRef.current = m; }} />
       </MapContainer>
@@ -973,6 +1027,27 @@ export default function MapView({ risks, resources, incidents }: MapViewProps) {
           />
         </button>
       </div>
+
+      {/* Simulation progress bar — outside MapContainer so it renders correctly */}
+      {simRunning && (
+        <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-[1000] bg-surface/95 backdrop-blur-sm border border-border rounded-xl px-4 py-2.5 flex items-center gap-3">
+          <div className="w-52 h-2 rounded-full overflow-hidden" style={{ background: "rgba(255,255,255,0.08)" }}>
+            <div
+              className="h-full rounded-full"
+              style={{
+                width: `${Math.max(simProgress * 100, 0.5)}%`,
+                backgroundColor: simProgress > 0.5 ? "#ef4444" : "#a855f6",
+              }}
+            />
+          </div>
+          <span className="text-[9px] font-mono font-bold whitespace-nowrap" style={{ color: simProgress > 0.5 ? "#ef4444" : "#a855f6" }}>
+            {simProgress < 0.3 ? "CAT 5" : simProgress < 0.5 ? "APPROACHING" : simProgress < 0.65 ? "LANDFALL" : simProgress < 0.85 ? "CROSSING FL" : "POST-STORM"}
+          </span>
+          <span className="text-[9px] font-mono text-foreground-muted">
+            {Math.round(simProgress * 100)}%
+          </span>
+        </div>
+      )}
     </div>
   );
 }

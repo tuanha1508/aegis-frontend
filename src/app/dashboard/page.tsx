@@ -4,9 +4,27 @@ import { useState } from "react";
 import Link from "next/link";
 import { Icon } from "@iconify/react";
 import { icons } from "@/lib/icons";
-import { useApi } from "@/lib/use-api";
-import { useLiveData } from "@/lib/use-live-data";
-import { getPhase, getAlerts, getResources, getReports } from "@/lib/api";
+import { useDashboard } from "@/lib/dashboard-context";
+import {
+  advancePhase,
+  setPhase,
+  triggerAnalysis,
+  generateAlerts,
+  triggerOrchestrate,
+  triggerProcessReports,
+  triggerRankIncidents,
+  triggerMatching,
+  triggerRecoveryBriefs,
+  startScheduler,
+  stopScheduler,
+  orchestrationTick,
+  setScenario,
+  startSimulation,
+  getSimulationStatus,
+  askCommander,
+  verifyIncidents,
+  syncResources,
+} from "@/lib/api";
 import type { Phase } from "@/lib/types";
 
 function timeAgo(dateStr: string) {
@@ -24,12 +42,17 @@ const phaseConfig: Record<Phase, { label: string; icon: string; color: string }>
 };
 
 export default function DashboardPage() {
-  const { data: phase } = useApi(getPhase);
-  const { data: alerts } = useApi(getAlerts);
-  const { data: resources } = useApi(getResources);
-  const { data: reports } = useApi(getReports);
-  const { weather, waterLevels, tides, alerts: nwsAlerts, news, streams, lastUpdated } = useLiveData();
+  const {
+    phase, alerts, resources, reports, incidents, recoveryBriefs, assignments, auditLog,
+    weather, waterLevels, tides, nwsAlerts, news, streams, lastUpdated,
+    refetchPhase, refetchAlerts, refetchIncidents,
+  } = useDashboard();
   const [expandedAlert, setExpandedAlert] = useState<number | null>(null);
+  const [showOperator, setShowOperator] = useState(false);
+  const [agentLoading, setAgentLoading] = useState<string | null>(null);
+  const [schedulerRunning, setSchedulerRunning] = useState(false);
+  const [commanderQuery, setCommanderQuery] = useState("");
+  const [commanderResponse, setCommanderResponse] = useState<string | null>(null);
 
   const currentPhase = phase?.current_phase ?? "pre_storm";
   const config = phaseConfig[currentPhase];
@@ -39,6 +62,31 @@ export default function DashboardPage() {
   const stations = waterLevels?.stations ?? [];
   const hasFloodWarning = stations.some((s) => s.percent_of_flood > 80);
   const highWind = weather && weather.wind_speed_mph > 40;
+  const activeIncidents = incidents?.filter((i) => !i.resolved) ?? [];
+
+  const [opsStatus, setOpsStatus] = useState<{ type: "success" | "error"; message: string } | null>(null);
+
+  const runAgent = async (name: string, fn: () => Promise<unknown>) => {
+    setAgentLoading(name);
+    setOpsStatus(null);
+    try {
+      const result = await fn();
+      const res = result as Record<string, unknown> | undefined;
+      if (res?.status === "error" || res?.error) {
+        setOpsStatus({ type: "error", message: String(res.error ?? "Agent failed") });
+      } else {
+        setOpsStatus({ type: "success", message: `${name.toUpperCase()} completed` });
+      }
+      refetchPhase();
+      refetchAlerts();
+      refetchIncidents();
+    } catch (e) {
+      setOpsStatus({ type: "error", message: e instanceof Error ? e.message : "Request failed" });
+    }
+    setAgentLoading(null);
+    // Auto-clear status after 5s
+    setTimeout(() => setOpsStatus(null), 5000);
+  };
 
   return (
     <div className="p-3 md:p-4">
@@ -65,12 +113,115 @@ export default function DashboardPage() {
             </div>
           )}
         </div>
-        {lastUpdated && (
-          <span className="text-[10px] font-mono text-foreground-muted">
-            {timeAgo(lastUpdated.toISOString())}
-          </span>
-        )}
+        <div className="flex items-center gap-2">
+          {lastUpdated && (
+            <span className="text-[10px] font-mono text-foreground-muted">
+              {timeAgo(lastUpdated.toISOString())}
+            </span>
+          )}
+          <button
+            onClick={() => setShowOperator(!showOperator)}
+            className={`text-[9px] font-mono font-bold px-2 py-1 rounded transition-colors ${showOperator ? "bg-accent text-white" : "bg-surface border border-border text-foreground-muted hover:text-foreground"}`}
+          >
+            OPS
+          </button>
+        </div>
       </div>
+
+      {/* Operator panel — collapsible */}
+      {showOperator && (
+        <div className="mb-3 bg-surface rounded-lg border border-accent/30 p-3">
+          <div className="flex items-center gap-2 mb-2">
+            <div className="h-2 w-2 rounded-full bg-accent" />
+            <span className="text-[9px] font-mono font-bold text-accent uppercase tracking-widest">Operator Controls</span>
+          </div>
+          <div className="flex flex-wrap gap-1.5">
+            {/* Phase controls */}
+            {(["pre_storm", "active_storm", "post_storm"] as Phase[]).map((p) => (
+              <button
+                key={p}
+                onClick={() => runAgent("phase", () => setPhase(p))}
+                className={`text-[9px] font-mono px-2 py-1 rounded border transition-colors ${
+                  currentPhase === p
+                    ? "bg-foreground text-foreground-inverse border-foreground"
+                    : "bg-surface border-border text-foreground-muted hover:text-foreground"
+                }`}
+              >
+                {p.replace(/_/g, " ").toUpperCase()}
+              </button>
+            ))}
+            <div className="h-5 w-px bg-border mx-1" />
+            {/* Core actions */}
+            <button
+              onClick={() => runAgent("orchestrate", () => triggerOrchestrate())}
+              disabled={agentLoading !== null}
+              className="text-[9px] font-mono px-2 py-1 rounded border border-accent/30 bg-accent/10 text-accent hover:bg-accent/20 transition-colors disabled:opacity-30"
+            >
+              {agentLoading === "orchestrate" ? "..." : "▶ RUN ALL AGENTS"}
+            </button>
+            <div className="h-5 w-px bg-border mx-1" />
+            {/* Simulation */}
+            {(["fast", "normal", "slow"] as const).map((speed) => (
+              <button
+                key={speed}
+                onClick={() => runAgent(`sim-${speed}`, () => startSimulation(speed))}
+                disabled={agentLoading !== null}
+                className="text-[9px] font-mono px-2 py-1 rounded border border-border bg-surface text-foreground-muted hover:text-foreground hover:border-accent transition-colors disabled:opacity-30"
+              >
+                {agentLoading === `sim-${speed}` ? "..." : `SIM ${speed.toUpperCase()}`}
+              </button>
+            ))}
+          </div>
+          {/* Status feedback */}
+          {opsStatus && (
+            <div className={`mt-2 text-[9px] font-mono px-2 py-1 rounded ${opsStatus.type === "error" ? "bg-destructive-light text-destructive" : "bg-success-light text-success"}`}>
+              {opsStatus.type === "error" ? "✗ " : "✓ "}{opsStatus.message.substring(0, 200)}
+            </div>
+          )}
+          {/* Commander — AI situation queries */}
+          <div className="flex gap-2 mt-2">
+            <input
+              value={commanderQuery}
+              onChange={(e) => setCommanderQuery(e.target.value)}
+              onKeyDown={async (e) => {
+                if (e.key === "Enter" && commanderQuery.trim()) {
+                  setAgentLoading("commander");
+                  try {
+                    const res = await askCommander(commanderQuery.trim());
+                    const answer = (res as Record<string, unknown>).answer ?? (res as Record<string, unknown>).response ?? (res as Record<string, unknown>).reply ?? (res as Record<string, unknown>).result ?? (res as Record<string, unknown>).narrative ?? (res as Record<string, unknown>).message ?? JSON.stringify(res);
+                    setCommanderResponse(String(answer));
+                  } catch { setCommanderResponse("Error"); }
+                  setAgentLoading(null);
+                  setCommanderQuery("");
+                }
+              }}
+              placeholder="Ask commander: what's the worst area? how many people trapped?"
+              className="flex-1 px-3 py-1.5 text-[10px] font-mono bg-background border border-accent/30 rounded text-foreground placeholder:text-foreground-muted outline-none focus:border-accent"
+            />
+            <button
+              onClick={async () => {
+                if (!commanderQuery.trim()) return;
+                setAgentLoading("commander");
+                try {
+                  const res = await askCommander(commanderQuery.trim());
+                  setCommanderResponse(JSON.stringify(res, null, 2));
+                } catch { setCommanderResponse("Error"); }
+                setAgentLoading(null);
+                setCommanderQuery("");
+              }}
+              disabled={!commanderQuery.trim() || agentLoading !== null}
+              className="text-[9px] font-mono px-3 py-1.5 rounded bg-accent text-white hover:bg-accent-hover transition-colors disabled:opacity-30"
+            >
+              {agentLoading === "commander" ? "..." : "ASK"}
+            </button>
+          </div>
+          {commanderResponse && (
+            <div className="mt-2 bg-background border border-border rounded p-3 max-h-40 overflow-auto">
+              <p className="text-[11px] font-mono text-foreground leading-relaxed whitespace-pre-wrap">{commanderResponse}</p>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* NWS severe alerts */}
       {severeNWS.length > 0 && (
@@ -135,6 +286,7 @@ export default function DashboardPage() {
           {[
             { label: "ALERTS", value: `${alerts?.length ?? 0}`, warn: criticalAlerts.length > 0 },
             { label: "CRITICAL", value: `${criticalAlerts.length}`, warn: criticalAlerts.length > 0 },
+            { label: "INCIDENTS", value: `${activeIncidents.length}`, warn: activeIncidents.some((i) => i.severity_label === "critical") },
             { label: "SHELTERS", value: `${shelters.length}` },
             { label: "REPORTS", value: `${reports?.length ?? 0}` },
             { label: "NWS", value: `${nwsAlerts?.active_count ?? 0}`, warn: (nwsAlerts?.active_count ?? 0) > 0 },
@@ -154,7 +306,7 @@ export default function DashboardPage() {
           {[
             { label: "TEMP", value: weather ? `${Math.round(weather.temperature_f)}°F` : "—", sub: weather?.conditions },
             { label: "WIND", value: weather ? `${Math.round(weather.wind_speed_mph)} mph` : "—", sub: weather?.wind_direction, warn: highWind },
-            { label: "TIDE", value: tides ? `${tides.current_level_ft.toFixed(1)} ft` : "—" },
+            { label: "TIDE", value: tides?.current_level_ft != null ? `${tides.current_level_ft.toFixed(1)} ft` : "—" },
             { label: "HUMID", value: weather ? `${weather.humidity_percent}%` : "—" },
             { label: "BARO", value: weather ? `${weather.barometric_pressure_inhg.toFixed(2)}"` : "—", warn: weather && weather.barometric_pressure_inhg < 29.5 },
           ].map((row) => (
@@ -217,8 +369,61 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* Bottom: Alerts + News */}
-      <div className="grid lg:grid-cols-2 gap-1.5">
+      {/* Bottom: Incidents + Reports + Alerts + News */}
+      <div className="grid lg:grid-cols-4 gap-1.5">
+        {/* Incidents */}
+        <div className="bg-surface rounded-lg border border-border overflow-hidden">
+          <div className="px-3 py-1.5 border-b border-border">
+            <span className="text-[8px] uppercase tracking-[0.2em] font-mono font-bold text-foreground-muted">Incidents</span>
+          </div>
+          {activeIncidents.length > 0 ? activeIncidents.slice(0, 6).map((incident) => {
+            const isCritical = incident.severity_label === "critical" || incident.severity_label === "high";
+            return (
+              <div key={incident.id} className={`px-3 py-1.5 border-b border-border last:border-0 ${isCritical ? "border-l-2 border-l-destructive" : "border-l-2 border-l-transparent"}`}>
+                <div className="flex items-center justify-between gap-2">
+                  <p className={`text-[10px] font-mono line-clamp-1 ${isCritical ? "text-destructive" : "text-foreground"}`}>{incident.incident_type}</p>
+                  {incident.severity_score != null && (
+                    <span className={`text-[9px] font-mono font-bold ${isCritical ? "text-destructive" : "text-foreground-muted"}`}>{incident.severity_score}</span>
+                  )}
+                </div>
+                <p className="text-[9px] font-mono text-foreground-muted line-clamp-1 mt-0.5">{incident.location_text}</p>
+                {incident.recommended_action && (
+                  <p className="text-[8px] font-mono text-accent mt-0.5 line-clamp-1">{incident.recommended_action}</p>
+                )}
+              </div>
+            );
+          }) : (
+            <div className="py-3 text-center"><p className="text-[9px] font-mono text-foreground-muted">NO INCIDENTS</p></div>
+          )}
+        </div>
+
+        {/* Reports */}
+        <div className="bg-surface rounded-lg border border-border overflow-hidden">
+          <div className="px-3 py-1.5 border-b border-border">
+            <span className="text-[8px] uppercase tracking-[0.2em] font-mono font-bold text-foreground-muted">Reports</span>
+          </div>
+          {reports && reports.filter((r) => r.incident_type && r.incident_type !== "other").length > 0 ? reports.filter((r) => r.incident_type && r.incident_type !== "other").slice(0, 6).map((report) => (
+            <div key={report.id} className={`px-3 py-1.5 border-b border-border last:border-0 ${report.has_children ? "border-l-2 border-l-destructive" : "border-l-2 border-l-transparent"}`}>
+              <p className="text-[10px] font-mono text-foreground line-clamp-1">{report.raw_text}</p>
+              <div className="flex items-center gap-2 mt-0.5">
+                <span className="text-[8px] font-mono text-foreground-muted">{report.source}</span>
+                {report.incident_type && (
+                  <span className="text-[8px] font-mono text-warning">{report.incident_type}</span>
+                )}
+                {report.location_text && (
+                  <span className="text-[8px] font-mono text-foreground-muted">{report.location_text}</span>
+                )}
+                <span className={`text-[8px] font-mono ${report.processed ? "text-success" : "text-foreground-muted"}`}>
+                  {report.processed ? "✓" : "pending"}
+                </span>
+              </div>
+            </div>
+          )) : (
+            <div className="py-3 text-center"><p className="text-[9px] font-mono text-foreground-muted">NO REPORTS</p></div>
+          )}
+        </div>
+
+        {/* Alerts */}
         <div className="bg-surface rounded-lg border border-border overflow-hidden">
           <div className="px-3 py-1.5 border-b border-border">
             <span className="text-[8px] uppercase tracking-[0.2em] font-mono font-bold text-foreground-muted">Alerts</span>
@@ -236,11 +441,12 @@ export default function DashboardPage() {
           )}
         </div>
 
+        {/* News */}
         <div className="bg-surface rounded-lg border border-border overflow-hidden">
           <div className="px-3 py-1.5 border-b border-border">
             <span className="text-[8px] uppercase tracking-[0.2em] font-mono font-bold text-foreground-muted">News Feed</span>
           </div>
-          {news && news.items.length > 0 ? news.items.slice(0, 6).map((item, i) => {
+          {news && news.items.length > 0 ? [...new Map(news.items.map((n) => [n.title, n])).values()].slice(0, 6).map((item, i) => {
             const isDanger = item.severity === "extreme" || item.severity === "severe";
             return (
               <a key={i} href={item.url} target="_blank" rel="noopener noreferrer" className={`block px-3 py-1.5 border-b border-border last:border-0 hover:bg-hover transition-colors ${isDanger ? "border-l-2 border-l-destructive" : "border-l-2 border-l-transparent"}`}>
@@ -253,6 +459,84 @@ export default function DashboardPage() {
           )}
         </div>
       </div>
+
+      {/* Recovery briefs — shown in post-storm phase */}
+      {recoveryBriefs && recoveryBriefs.length > 0 && (
+        <div className="mt-1.5 bg-surface rounded-lg border border-border overflow-hidden">
+          <div className="px-3 py-1.5 border-b border-border">
+            <span className="text-[8px] uppercase tracking-[0.2em] font-mono font-bold text-foreground-muted">Recovery Status</span>
+          </div>
+          <div className="grid lg:grid-cols-3 divide-x divide-border">
+            {recoveryBriefs.slice(0, 6).map((brief, i) => {
+              const neighborhood = (brief.neighborhood as string) ?? `Area ${i + 1}`;
+              const power = brief.power_status as string | undefined;
+              const water = brief.water_status as string | undefined;
+              const roads = brief.roads_status as string | undefined;
+              return (
+                <div key={i} className="px-3 py-2 border-b border-border last:border-0">
+                  <p className="text-[10px] font-mono font-medium text-foreground mb-1">{neighborhood}</p>
+                  {power && <p className="text-[8px] font-mono text-foreground-muted">⚡ {power}</p>}
+                  {water && <p className="text-[8px] font-mono text-foreground-muted">💧 {water}</p>}
+                  {roads && <p className="text-[8px] font-mono text-foreground-muted">🛣 {roads}</p>}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Assignments + Audit Log */}
+      {((assignments && assignments.length > 0) || (auditLog && auditLog.length > 0)) && (
+        <div className="mt-1.5 grid lg:grid-cols-2 gap-1.5">
+          {/* Assignments — dispatched teams */}
+          {assignments && assignments.length > 0 && (
+            <div className="bg-surface rounded-lg border border-border overflow-hidden">
+              <div className="px-3 py-1.5 border-b border-border">
+                <span className="text-[8px] uppercase tracking-[0.2em] font-mono font-bold text-foreground-muted">Assignments</span>
+              </div>
+              {assignments.slice(0, 6).map((a) => {
+                const statusColor = a.status === "dispatched" ? "text-warning" : a.status === "completed" ? "text-success" : a.status === "en_route" ? "text-accent" : "text-foreground-muted";
+                return (
+                  <div key={a.id} className="px-3 py-1.5 flex items-center justify-between border-b border-border last:border-0">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className="text-[9px] font-mono text-foreground-muted">#{a.incident_id}</span>
+                      <span className="text-[10px] font-mono text-foreground truncate">→ Resource #{a.resource_id}</span>
+                    </div>
+                    <span className={`text-[9px] font-mono font-medium uppercase ${statusColor}`}>{a.status}</span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Audit log — agent activity */}
+          {auditLog && auditLog.length > 0 && (
+            <div className="bg-surface rounded-lg border border-border overflow-hidden">
+              <div className="px-3 py-1.5 border-b border-border">
+                <span className="text-[8px] uppercase tracking-[0.2em] font-mono font-bold text-foreground-muted">Agent Activity</span>
+              </div>
+              {auditLog.slice(0, 8).map((entry, i) => {
+                const action = (entry.action as string) ?? (entry.event as string) ?? "—";
+                const agent = (entry.agent as string) ?? (entry.agent_name as string) ?? "";
+                const ts = (entry.created_at as string) ?? (entry.timestamp as string) ?? "";
+                const detail = (entry.detail as string) ?? (entry.message as string) ?? "";
+                return (
+                  <div key={i} className="px-3 py-1.5 border-b border-border last:border-0">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2 min-w-0">
+                        {agent && <span className="text-[8px] font-mono text-accent">{agent}</span>}
+                        <span className="text-[10px] font-mono text-foreground truncate">{action}</span>
+                      </div>
+                      {ts && <span className="text-[8px] font-mono text-foreground-muted shrink-0">{timeAgo(ts)}</span>}
+                    </div>
+                    {detail && <p className="text-[8px] font-mono text-foreground-muted line-clamp-1 mt-0.5">{detail}</p>}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
