@@ -541,7 +541,7 @@ export default function DashboardPage() {
                   <div key={a.id} className="px-3 py-1.5 flex items-center justify-between border-b border-border last:border-0">
                     <div className="flex items-center gap-2 min-w-0">
                       <span className="text-[9px] font-mono text-foreground-muted">#{a.incident_id}</span>
-                      <span className="text-[10px] font-mono text-foreground truncate">→ Resource #{a.resource_id}</span>
+                      <span className="text-[10px] font-mono text-foreground truncate">{a.assignee ?? a.recommended_action ?? "Unassigned"}</span>
                     </div>
                     <span className={`text-[9px] font-mono font-medium uppercase ${statusColor}`}>{a.status}</span>
                   </div>

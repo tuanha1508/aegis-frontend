@@ -166,12 +166,27 @@ export const planResources = (lat: number, lng: number, needs: string[], maxMile
     { lat, lng, needs, max_miles: maxMiles ?? 10 }
   );
 export const syncResources = () => post("/resources/sync");
+export const resourceReportText = (text: string) =>
+  post<Record<string, unknown>>("/resources/report-text", { text });
+
+// Demo stream (SSE-based simulation)
+export const startDemoStream = (speed?: string) =>
+  post<Record<string, unknown>>("/simulation/demo-stream", speed ? { speed } : undefined);
+export const getDemoStreamStatus = () =>
+  get<Record<string, unknown>>("/simulation/demo-stream");
+export const stopDemoStream = () =>
+  post<Record<string, unknown>>("/simulation/demo-stream/stop");
+
+// Reunification report text
+export const reunificationReportText = (text: string) =>
+  post<Record<string, unknown>>("/reunification/report-text", { text });
 
 // Assignments
 export interface Assignment {
   id: number;
   incident_id: number;
-  resource_id: number;
+  recommended_action: string | null;
+  assignee: string | null;
   status: string;
   notes: string | null;
   created_at: string | null;
@@ -181,9 +196,9 @@ export const getAssignments = (incidentId?: number) =>
   get<Assignment[]>(`/assignments${incidentId ? `?incident_id=${incidentId}` : ""}`);
 export const getAssignment = (id: number) =>
   get<Assignment>(`/assignments/${id}`);
-export const createAssignment = (data: { incident_id: number; resource_id: number; notes?: string }) =>
+export const createAssignment = (data: { incident_id: number; recommended_action?: string; assignee?: string; notes?: string }) =>
   post<Assignment>("/assignments", data);
-export const updateAssignment = (id: number, data: { status?: string; notes?: string }) =>
+export const updateAssignment = (id: number, data: { status?: string; assignee?: string; notes?: string }) =>
   patch<Assignment>(`/assignments/${id}`, data);
 
 // Audit
@@ -196,10 +211,10 @@ export const getAuditLog = (limit?: number, runId?: string) => {
 };
 
 // SMS (wrapper for consistency)
-export const sendSmsChat = (message: string, phone?: string) =>
+export const sendSmsChat = (message: string, phone?: string, lat?: number, lng?: number) =>
   post<{ status: string; reply: string; report: Record<string, unknown>; report_id: number }>(
     "/sms/chat",
-    { message, phone }
+    { message, phone, ...(lat != null && lng != null ? { lat, lng } : {}) }
   );
 
 // Match review
@@ -214,4 +229,4 @@ async function patch<T>(path: string, body: unknown): Promise<T> {
 }
 
 export const reviewMatch = (id: number, status: "confirmed" | "rejected") =>
-  patch<MatchResponse>(`/reunification/matches/${id}`, { status });
+  patch<MatchResponse>(`/reunification/matches/${id}`, { status, reviewed_by: "operator" });
