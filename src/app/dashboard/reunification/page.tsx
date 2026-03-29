@@ -376,10 +376,23 @@ export default function ReunificationPage() {
                   </p>
                 </div>
               </div>
-              {match.match_factors && (
-                <p className="text-xs text-foreground-secondary mt-3">
-                  Factors: {match.match_factors}
-                </p>
+              {match.match_factors && (() => {
+                try {
+                  const factors = typeof match.match_factors === "string" ? JSON.parse(match.match_factors) : match.match_factors;
+                  return (
+                    <div className="flex flex-wrap gap-1.5 mt-3">
+                      {Object.entries(factors as Record<string, number>).map(([key, val]) => (
+                        <div key={key} className="text-[10px] font-mono bg-surface border border-border rounded px-2 py-0.5">
+                          <span className="text-foreground-muted">{key.replace(/_/g, " ")}</span>
+                          <span className="text-foreground ml-1 font-medium">{Math.round((val as number) * 100)}%</span>
+                        </div>
+                      ))}
+                    </div>
+                  );
+                } catch {
+                  return null;
+                }
+              })(
               )}
               {match.status === "pending" && (
                 <div className="flex gap-2 mt-4">
