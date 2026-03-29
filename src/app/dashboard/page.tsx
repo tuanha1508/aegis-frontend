@@ -96,7 +96,7 @@ export default function DashboardPage() {
   };
 
   return (
-    <div className="p-3 md:p-4">
+    <div className="p-3 md:p-4" suppressHydrationWarning>
       {/* Header strip */}
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-3">
@@ -298,9 +298,9 @@ export default function DashboardPage() {
       )}
 
       {/* Video feeds */}
-      {streams?.streams && streams.streams.length > 0 && (
-        <div className="grid grid-cols-3 gap-1.5 mb-3">
-          {streams.streams.slice(0, 3).map((stream, i) =>
+      {(streams?.streams?.length ?? 0) > 0 && (
+        <div className="grid grid-cols-3 gap-1.5 mb-3" suppressHydrationWarning>
+          {streams!.streams!.slice(0, 3).map((stream, i) =>
             stream.embed_url ? (
               <div key={i} className="rounded-lg overflow-hidden bg-surface relative group">
                 <div className="aspect-video">
